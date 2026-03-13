@@ -1,106 +1,192 @@
+````markdown
 # Oxford Houses Central Management System
 
-A centralized platform designed to manage multiple Oxford Houses while keeping each house’s data isolated. The system provides role-based access, centralized administration, contract management, audit logs, and user management.
+A centralized multi-house management platform for Oxford Houses that keeps each house’s data separated while providing secure system-wide administration, reporting, contract management, and user access control.
 
----
+## Overview
 
-## Features
+The Oxford Houses Central Management System is designed to allow multiple houses to operate under one platform without mixing their records. Central administrators can manage users, permissions, and houses across the system, while house-level users only see the data they are authorized to access.
 
-### Multi-House Management
-- Manage multiple Oxford Houses in one system
-- Each house maintains separate data
-- Centralized oversight tools
+The system includes role-based permissions, contract tools, readable audit logs, security controls, and support for both MySQL and SQLite installations.
+
+## Core Features
+
+### Multi-House Support
+- Manage multiple Oxford Houses from one system
+- Keep house data isolated and organized
+- Assign users to one or more houses
+- Support central oversight without mixing house records
 
 ### Role-Based Access Control
-Roles supported:
+Supported roles include:
+- **House User**
+- **Core Member / House Manager**
+- **Central Admin**
+- **Super Admin**
 
-- House User
-- Core Member / House Manager
-- Central Admin
-- Super Admin
-
-Each role has controlled permissions across the platform.
-
----
+Each role is enforced throughout the system to protect sensitive data and administrative actions.
 
 ### User Management
-Admins can:
-
-- Create users
-- Assign houses
-- Control roles
-- Activate / deactivate accounts
-- Manage access permissions
-
-Users can also change their own password.
-
----
+- Create and manage users
+- Assign roles
+- Activate or deactivate accounts
+- Assign access to one or more houses
+- Allow users to change their own password
 
 ### Contract Management
-Features include:
-
-- Upload scanned contracts
-- Contract fulfillment stamping
-- Contract void stamping
-- Secure contract password protection
-
----
+- Store and manage contracts
+- Upload scanned contract copies
+- Protect contract actions with a contract password
+- Allow authorized roles to change the contract password
+- Support contract status workflows such as fulfilled or voided
 
 ### Security
-Security protections include:
-
-- Password hashing
-- Role-based authorization
-- Secure contract stamping
-- Session protection
-- Audit logging
-
----
+- Password hashing with PHP
+- Protected contract password management
+- Session-based authentication
+- Role-restricted actions
+- Secure audit trail support
 
 ### Audit Logging
-The system logs key actions including:
+- Readable system activity logs
+- Track user creation, updates, and permission changes
+- Track contract-related changes
+- Track administrative actions
 
-- User creation
-- Role changes
-- Access updates
-- Contract changes
-- Administrative actions
+### Installer Support
+- Full install script included
+- Detects available database drivers
+- Supports **MySQL / MariaDB**
+- Supports **SQLite**
+- Creates the initial database structure
+- Seeds the first super admin account
+- Writes install lock protection
 
-Logs are stored in a readable format for auditing.
+## Technology Stack
 
----
-
-### Technology Stack
-
-Backend
+### Backend
 - PHP 8+
 
-Database
+### Database
 - MySQL / MariaDB
-- Optional SQLite support
+- SQLite
 
-Frontend
-- HTML5
-- CSS3
-- Responsive UI
+### Frontend
+- HTML
+- CSS
+- Responsive card-based admin interface
 
----
+## Project Structure
 
-### Project Structure
+```text
 extras/
-├── header.php
+├── data/
 ├── footer.php
+├── header.php
+├── install.lock
 ├── master_config.php
 └── sql/
-
-central_admin.php
-users_admin.php
-security.php
 
 president/
 └── contracts.php
 
----
+install.php
+central_admin.php
+users_admin.php
+security.php
+login.php
+````
 
-### License
-Intended for Oxford House operational use.
+## Installation
+
+### 1. Upload the Files
+
+Upload the project to your server directory.
+
+Example:
+
+```text
+/var/www/html/oxford/
+```
+
+or
+
+```text
+C:\xampp\htdocs\oxford\
+```
+
+### 2. Run the Installer
+
+Open the installer in your browser:
+
+```text
+http://yourdomain.com/oxford/install.php
+```
+
+### 3. Choose a Database
+
+The installer can detect and use:
+
+* MySQL / MariaDB
+* SQLite
+
+### 4. Complete Setup
+
+During installation, you can:
+
+* set the system name
+* configure the database
+* create the first super admin
+* set the initial contract password
+* optionally seed a demo house
+
+### 5. Remove or Rename the Installer
+
+After installation, delete or rename `install.php` for security.
+
+## Permissions Overview
+
+| Role          | Access Level                |
+| ------------- | --------------------------- |
+| House User    | Basic assigned house access |
+| House Manager | House-level management      |
+| Central Admin | Multi-house administration  |
+| Super Admin   | Full system access          |
+
+## Security Notes
+
+* Passwords are stored as hashes
+* Contract password changes are restricted by role
+* Sensitive actions should be logged
+* Install lock prevents accidental reinstallation
+
+## Documentation Included
+
+The project can include:
+
+* `README.md`
+* `INSTALL.md`
+* `CHANGELOG.md`
+* `ADMIN_GUIDE.md`
+* `DEVELOPER.md`
+* `RELEASE_NOTES.md`
+* `DATABASE_SCHEMA.md`
+
+## Intended Use
+
+This system is designed for Oxford House operational management where multiple houses need centralized oversight with controlled access and separated records.
+
+## Initial Commit Summary
+
+* add multi-house central management structure
+* add role-based access control
+* add user and house access management
+* add contract password protection
+* add audit logging support
+* add installer with database detection
+* add project documentation
+
+## License
+
+Intended for Oxford House operational and administrative use.
+
