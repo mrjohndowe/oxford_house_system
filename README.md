@@ -78,7 +78,7 @@ Each role is enforced throughout the system to protect sensitive data and admini
 
 ## Project Structure
 
-```text
+```txt
 extras/
 ├── data/
 ├── footer.php
@@ -105,13 +105,13 @@ Upload the project to your server directory.
 
 Example:
 
-```text
+```txt
 /var/www/html/oxford/
 ```
 
 or
 
-```text
+```txt
 C:\xampp\htdocs\oxford\
 ```
 
@@ -119,7 +119,7 @@ C:\xampp\htdocs\oxford\
 
 Open the installer in your browser:
 
-```text
+```txt
 http://yourdomain.com/oxford/install.php
 ```
 
