@@ -118,6 +118,9 @@ include __DIR__ . '/extras/header.php';
 
 $knownTables = [
     'chapter_meeting_minutes' => 'Chapter Minutes',
+    'hsc_meeting_minutes_json' => 'HSC Minutes',
+    'house_visit_houses' => 'HSC House List',
+    'house_visit_schedules' => 'HSC Schedules',
     'housing_service_representative_reports' => 'HSR Reports',
     'house_visit_reports' => 'House Visit Reports',
     'house_tour_forms' => 'House Tour Forms',

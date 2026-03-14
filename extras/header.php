@@ -9,8 +9,8 @@ $allowedExtensions = ['php', 'pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 
 
 // $allowedExtenstions = oxford_require_role(['central_admin', 'super_admin']) ? array_merge($allowedExtensions, ['md']) : $allowedExtensions;
 
-$customOrder = ['Chapter', 'President', 'Treasury', 'Secretary', 'Comptroller', 'HSR', 'Coordinator', 'HSC'];
-$folderIcons = ['President'=>'👑','Treasury'=>'💰','Secretary'=>'📝','Comptroller'=>'📊','HSR'=>'🤝','Coordinator'=>'📌','Chapter'=>'🏠','HSC'=>'📚','Main'=>'📂'];
+$customOrder = ['Chapter', 'State', 'President', 'Treasury', 'Secretary', 'Comptroller', 'HSR', 'Coordinator', 'HSC'];
+$folderIcons = ['President'=>'👑','Treasury'=>'💰','Secretary'=>'📝','Comptroller'=>'📊','HSR'=>'🤝','Coordinator'=>'📌','Chapter'=>'🏠','State'=>'🗺️','HSC'=>'📚','Main'=>'📂'];
 $groupedDocuments = [];
 $currentFile = $_GET['file'] ?? '';
 

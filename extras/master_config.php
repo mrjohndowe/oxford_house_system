@@ -147,6 +147,105 @@ function oxford_create_house_database(PDO $serverPdo, string $databaseName, stri
     return $copiedTables;
 }
 
+
+function oxford_collect_module_schema_sql(string $basePath, array $folders = ['chapter', 'state']): array
+{
+    $sqlStatements = [];
+
+    foreach ($folders as $folder) {
+        $folderPath = rtrim($basePath, '/\\') . DIRECTORY_SEPARATOR . trim($folder, '/\\');
+        if (!is_dir($folderPath)) {
+            continue;
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($folderPath, FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $fileInfo) {
+            if (!$fileInfo->isFile() || strtolower($fileInfo->getExtension()) !== 'php') {
+                continue;
+            }
+
+            $contents = @file_get_contents($fileInfo->getPathname());
+            if (!is_string($contents) || $contents === '') {
+                continue;
+            }
+
+            if (preg_match_all('/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS.*?;|ALTER\s+TABLE.*?;/is', $contents, $matches)) {
+                foreach ($matches[0] as $statement) {
+                    $statement = trim((string)$statement);
+                    if ($statement !== '') {
+                        $sqlStatements[$statement] = $statement;
+                    }
+                }
+            }
+        }
+    }
+
+    $fallbackStatements = [
+        "CREATE TABLE IF NOT EXISTS hsc_meeting_minutes_json (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            house_name VARCHAR(255) NOT NULL DEFAULT '',
+            meeting_date DATE NOT NULL,
+            start_time TIME NULL DEFAULT NULL,
+            end_time TIME NULL DEFAULT NULL,
+            report_json LONGTEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            KEY idx_house_date (house_name, meeting_date),
+            KEY idx_meeting_date (meeting_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+    ];
+
+    foreach ($fallbackStatements as $statement) {
+        $sqlStatements[$statement] = $statement;
+    }
+
+    return array_values($sqlStatements);
+}
+
+function oxford_sync_module_schema(PDO $pdo, string $basePath, array $folders = ['chapter', 'state']): array
+{
+    $applied = [];
+    foreach (oxford_collect_module_schema_sql($basePath, $folders) as $statement) {
+        try {
+            $pdo->exec($statement);
+            if (preg_match('/(?:CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS|ALTER\s+TABLE)\s+`?([a-zA-Z0-9_]+)`?/i', $statement, $match)) {
+                $applied[] = $match[1];
+            }
+        } catch (Throwable $e) {
+            // Ignore duplicate-column and already-applied migration errors so older house DBs can self-heal safely.
+            $message = strtolower((string)$e->getMessage());
+            if (!str_contains($message, 'duplicate column') && !str_contains($message, 'duplicate key') && !str_contains($message, '1060') && !str_contains($message, '1061')) {
+                throw $e;
+            }
+        }
+    }
+
+    return array_values(array_unique($applied));
+}
+
+function oxford_sync_all_house_module_schema(PDO $serverPdo, PDO $masterPdo, string $dbHost, string $dbUser, string $dbPass, string $basePath, array $folders = ['chapter', 'state']): array
+{
+    $synced = [];
+    $stmt = $masterPdo->query('SELECT id, database_name FROM oxford_master_houses WHERE is_active = 1 ORDER BY id ASC');
+    $houses = $stmt ? $stmt->fetchAll() : [];
+
+    foreach ($houses as $house) {
+        $databaseName = (string)($house['database_name'] ?? '');
+        if ($databaseName === '') {
+            continue;
+        }
+
+        $serverPdo->exec("CREATE DATABASE IF NOT EXISTS `{$databaseName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        $housePdo = oxford_master_connect_db($dbHost, $databaseName, $dbUser, $dbPass);
+        $synced[$databaseName] = oxford_sync_module_schema($housePdo, $basePath, $folders);
+    }
+
+    return $synced;
+}
+
 function oxford_role_rank(string $role): int
 {
     return match ($role) {
@@ -452,6 +551,7 @@ try {
     }
 
     $houseRows = $masterPdo->query('SELECT * FROM oxford_master_houses WHERE is_active = 1 ORDER BY house_name ASC')->fetchAll();
+    $oxfordModuleSchemaSync = oxford_sync_all_house_module_schema($oxfordServerPdo, $masterPdo, $masterDbHost, $masterDbUser, $masterDbPass, oxford_base_path(), ['chapter', 'state']);
     $houseMap = [];
     foreach ($houseRows as $houseRow) {
         $houseMap[(int)$houseRow['id']] = $houseRow;
