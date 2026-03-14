@@ -78,7 +78,6 @@ Each role is enforced throughout the system to protect sensitive data and admini
 
 ## Project Structure
 
-```txt
 extras/
 ├── data/
 ├── footer.php
@@ -95,7 +94,7 @@ central_admin.php
 users_admin.php
 security.php
 login.php
-```
+
 
 ## Installation
 
@@ -105,23 +104,22 @@ Upload the project to your server directory.
 
 Example:
 
-```txt
-/var/www/html/oxford/
-```
+
+`/var/www/html/oxford/`
+
 
 or
 
-```txt
-C:\xampp\htdocs\oxford\
-```
+
+`C:\xampp\htdocs\oxford\`
+
 
 ### 2. Run the Installer
 
 Open the installer in your browser:
 
-```txt
-http://yourdomain.com/oxford/install.php
-```
+`http://yourdomain.com/oxford/install.php`
+
 
 ### 3. Choose a Database
 
