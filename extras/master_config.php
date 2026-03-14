@@ -172,10 +172,21 @@ function oxford_collect_module_schema_sql(string $basePath, array $folders = ['c
                 continue;
             }
 
-            if (preg_match_all('/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS.*?;|ALTER\s+TABLE.*?;/is', $contents, $matches)) {
-                foreach ($matches[0] as $statement) {
+            if (preg_match_all('/\$pdo->exec\(\s*(["\'])\s*(CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS.*?)\s*\1\s*\)/is', $contents, $createMatches)) {
+                foreach ($createMatches[2] as $statement) {
                     $statement = trim((string)$statement);
                     if ($statement !== '') {
+                        $statement = rtrim($statement, ";\r\n\t ") . ';';
+                        $sqlStatements[$statement] = $statement;
+                    }
+                }
+            }
+
+            if (preg_match_all('/=>\s*"\s*(ALTER\s+TABLE.*?)"/is', $contents, $alterMatches)) {
+                foreach ($alterMatches[1] as $statement) {
+                    $statement = trim((string)$statement);
+                    if ($statement !== '' && preg_match('/^ALTER\s+TABLE\s+/i', $statement)) {
+                        $statement = rtrim($statement, ";\r\n\t ") . ';';
                         $sqlStatements[$statement] = $statement;
                     }
                 }
@@ -204,7 +215,6 @@ function oxford_collect_module_schema_sql(string $basePath, array $folders = ['c
 
     return array_values($sqlStatements);
 }
-
 function oxford_sync_module_schema(PDO $pdo, string $basePath, array $folders = ['chapter', 'state']): array
 {
     $applied = [];
