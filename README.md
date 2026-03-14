@@ -95,7 +95,7 @@ central_admin.php
 users_admin.php
 security.php
 login.php
-````
+```
 
 ## Installation
 
