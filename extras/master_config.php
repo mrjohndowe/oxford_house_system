@@ -56,6 +56,17 @@ function oxford_request_path(): string
     return ltrim(basename($_SERVER['PHP_SELF'] ?? ''), '/');
 }
 
+function oxford_request_uses_shared_module_db(?string $requestPath = null): bool
+{
+    $requestPath = ltrim((string)($requestPath ?? oxford_request_path()), '/');
+    return $requestPath !== '' && (str_starts_with($requestPath, 'chapter/') || str_starts_with($requestPath, 'state/'));
+}
+
+function oxford_get_effective_database_name(string $selectedDatabaseName, string $masterDatabaseName, ?string $requestPath = null): string
+{
+    return oxford_request_uses_shared_module_db($requestPath) ? $masterDatabaseName : $selectedDatabaseName;
+}
+
 function oxford_url(string $path): string
 {
     $prefix = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/\\');
@@ -561,6 +572,7 @@ try {
     }
 
     $houseRows = $masterPdo->query('SELECT * FROM oxford_master_houses WHERE is_active = 1 ORDER BY house_name ASC')->fetchAll();
+    $oxfordSharedModuleSchemaSync = oxford_sync_module_schema($masterPdo, oxford_base_path(), ['chapter', 'state']);
     $oxfordModuleSchemaSync = oxford_sync_all_house_module_schema($oxfordServerPdo, $masterPdo, $masterDbHost, $masterDbUser, $masterDbPass, oxford_base_path(), ['chapter', 'state']);
     $houseMap = [];
     foreach ($houseRows as $houseRow) {
@@ -653,7 +665,9 @@ try {
     $dbHost = $masterDbHost;
     $dbUser = $masterDbUser;
     $dbPass = $masterDbPass;
-    $dbName = (string)$selectedHouse['database_name'];
+    $selectedHouseDbName = (string)$selectedHouse['database_name'];
+    $usesSharedModuleDb = oxford_request_uses_shared_module_db();
+    $dbName = oxford_get_effective_database_name($selectedHouseDbName, $masterDbName);
     $currentHouseName = (string)$selectedHouse['house_name'];
     $currentHouseCode = (string)$selectedHouse['house_code'];
     $currentHouseLabel = trim($currentHouseName . (($selectedHouse['city'] || $selectedHouse['state']) ? ' - ' . trim(($selectedHouse['city'] ? $selectedHouse['city'] . ', ' : '') . $selectedHouse['state']) : ''));
@@ -663,6 +677,9 @@ try {
     $pdo = oxford_master_connect_db($dbHost, $dbName, $dbUser, $dbPass);
 
     $oxfordUser = $activeUser;
+    $oxfordSelectedHouseDbName = $selectedHouseDbName;
+    $oxfordSharedDbName = $masterDbName;
+    $oxfordUsesSharedModuleDb = $usesSharedModuleDb;
     $oxfordIsCentralAdmin = in_array($oxfordUser['role'] ?? '', ['central_admin', 'super_admin'], true);
     $oxfordIsCentralRole = oxford_is_central_role($oxfordUser['role'] ?? '');
     $oxfordPageName = basename($_SERVER['PHP_SELF'] ?? '');

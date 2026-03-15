@@ -3,6 +3,7 @@
  * Oxford House Colorado Chapter 14 Meeting Minutes
  * Fillable + MySQL save/load by meeting date
  * Manual save + auto-save + update existing record
+ * Includes Comptroller Report with automatic math
  */
 declare(strict_types=1);
 
@@ -78,6 +79,7 @@ function save_form(PDO $pdo, array $payload): array {
         'vicechair_report_accept_checked',
         'housing_report_accept_checked',
         'outreach_report_accept_checked',
+        'comptroller_accept_checked',
         'reentry_report_accept_checked',
         'fundraising_report_accept_checked',
         'alumni_accept_checked',
@@ -133,11 +135,12 @@ function save_form(PDO $pdo, array $payload): array {
    STATIC DATA
 ========================= */
 $officerRows = [
-    'Chairperson',
+    'Chair',
     'Vice-Chair',
     'Secretary',
     'Treasurer',
     'Housing Serv. Chair',
+    'Outreach Chair',
     'Re-Entry Chair',
     'Fundraising Chair',
     'Alumni Coordinator',
@@ -240,13 +243,16 @@ $historyRows = $pdo->query("
         --warn: #8a5a00;
         --err: #9a1f1f;
     }
+
     * { box-sizing: border-box; }
+
     body {
         margin: 0;
         background: #d9d9d9;
         color: var(--text);
         font-family: var(--font-main);
     }
+
     .toolbar {
         position: sticky;
         top: 0;
@@ -260,6 +266,7 @@ $historyRows = $pdo->query("
         flex-wrap: wrap;
         align-items: center;
     }
+
     .btn, .history-select {
         border: 1px solid #111;
         background: #fff;
@@ -269,7 +276,9 @@ $historyRows = $pdo->query("
         text-transform: uppercase;
         letter-spacing: .4px;
     }
+
     .btn { cursor: pointer; }
+
     .history-wrap {
         display: inline-flex;
         align-items: center;
@@ -277,16 +286,19 @@ $historyRows = $pdo->query("
         font: 700 14px var(--font-main);
         text-transform: uppercase;
     }
+
     .history-select {
         min-width: 220px;
         cursor: pointer;
     }
+
     .status {
         width: 100%;
         text-align: center;
         font: 700 14px var(--font-main);
         text-transform: uppercase;
     }
+
     .status.ok { color: var(--ok); }
     .status.warn { color: var(--warn); }
     .status.err { color: var(--err); }
@@ -294,6 +306,7 @@ $historyRows = $pdo->query("
     .wrapper {
         padding: 18px 0 40px;
     }
+
     .page {
         width: var(--page-w);
         min-height: var(--page-h);
@@ -303,6 +316,7 @@ $historyRows = $pdo->query("
         box-shadow: 0 0 0 1px #c8c8c8;
         position: relative;
     }
+
     .title {
         text-align: center;
         font-weight: 900;
@@ -311,12 +325,14 @@ $historyRows = $pdo->query("
         margin: 2px 0 10px;
         text-transform: uppercase;
     }
+
     .topline {
         display: grid;
         grid-template-columns: 1fr 1fr;
         column-gap: 30px;
         margin: 6px 6px 18px;
     }
+
     .label-line {
         display: flex;
         align-items: center;
@@ -325,6 +341,7 @@ $historyRows = $pdo->query("
         font-size: 16px;
         text-transform: uppercase;
     }
+
     .line-input {
         flex: 1;
         border: none;
@@ -337,11 +354,13 @@ $historyRows = $pdo->query("
         outline: none;
         text-transform: uppercase;
     }
+
     .box {
         border: var(--border);
         margin-bottom: 18px;
         background: rgba(255,255,255,.08);
     }
+
     .section-title {
         font-size: 18px;
         font-weight: 900;
@@ -351,22 +370,27 @@ $historyRows = $pdo->query("
         text-align: center;
         letter-spacing: .2px;
     }
+
     .section-title.left { text-align: left; }
+
     .section-title small {
         font-size: 13px;
         font-weight: 700;
     }
+
     .roll-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 24px;
         padding: 12px 12px 8px;
     }
+
     table.grid {
         width: 100%;
         border-collapse: collapse;
         table-layout: fixed;
     }
+
     table.grid th,
     table.grid td {
         border: var(--thin);
@@ -375,6 +399,7 @@ $historyRows = $pdo->query("
         vertical-align: middle;
         background: transparent;
     }
+
     table.grid th {
         font-size: 15px;
         font-weight: 900;
@@ -382,6 +407,7 @@ $historyRows = $pdo->query("
         text-align: center;
         padding: 4px 6px;
     }
+
     table.grid .rowlabel {
         width: 50%;
         padding: 4px 6px;
@@ -389,6 +415,7 @@ $historyRows = $pdo->query("
         font-weight: 800;
         text-transform: uppercase;
     }
+
     .cell-input {
         width: 100%;
         height: 100%;
@@ -399,9 +426,11 @@ $historyRows = $pdo->query("
         outline: none;
         text-transform: uppercase;
     }
+
     .plain-lines {
         padding: 10px 12px 14px;
     }
+
     .plain-line {
         display: flex;
         align-items: center;
@@ -411,43 +440,51 @@ $historyRows = $pdo->query("
         font-size: 16px;
         text-transform: uppercase;
     }
+
     .yn-row {
         margin: 8px 4px 18px;
         font-weight: 900;
         font-size: 16px;
         text-transform: uppercase;
     }
+
     .radio-group {
         display: inline-flex;
         align-items: center;
         gap: 10px;
     }
+
     .radio-group label {
         display: inline-flex;
         align-items: center;
         gap: 4px;
         cursor: pointer;
     }
+
     input[type="radio"] {
         width: 16px;
         height: 16px;
         accent-color: #111;
     }
+
     .mmsp-check {
         width: 16px;
         height: 16px;
         accent-color: #111;
         margin: 0;
     }
+
     .minutes-box {
         padding: 8px 8px 0;
     }
+
     .block-label {
         font-size: 16px;
         font-weight: 900;
         text-transform: uppercase;
         margin-bottom: 6px;
     }
+
     .single-line {
         width: 100%;
         border: none;
@@ -459,6 +496,7 @@ $historyRows = $pdo->query("
         text-transform: uppercase;
         min-height: 28px;
     }
+
     textarea {
         width: 100%;
         border: none;
@@ -470,13 +508,15 @@ $historyRows = $pdo->query("
         text-transform: uppercase;
         overflow: hidden;
     }
+
     .short-notes { min-height: 52px; }
     .comment-area { min-height: 126px; }
     .report-area-lg { min-height: 134px; }
-    .report-area-md { min-height: 128px; }
+    .report-area-md { min-height: 108px; }
     .report-area-sm { min-height: 52px; }
     .business-old { min-height: 240px; }
     .business-new { min-height: 355px; }
+
     .accept-row {
         display: flex;
         align-items: center;
@@ -487,13 +527,16 @@ $historyRows = $pdo->query("
         text-transform: uppercase;
         font-size: 16px;
     }
+
     .accept-row .lefttxt { flex: 1; }
+
     .mmsp {
         display: flex;
         align-items: center;
         gap: 6px;
         white-space: nowrap;
     }
+
     .mmsp input[type="text"] {
         width: 90px;
         border: none;
@@ -503,13 +546,16 @@ $historyRows = $pdo->query("
         outline: none;
         text-transform: uppercase;
     }
+
     .treasurer-wrap { padding: 0 0 4px; }
+
     .account-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 50px;
         padding: 0 12px;
     }
+
     .moneyline {
         display: flex;
         align-items: center;
@@ -519,6 +565,7 @@ $historyRows = $pdo->query("
         font-weight: 900;
         text-transform: uppercase;
     }
+
     .moneyline .moneyfill,
     .moneyline .blankfill {
         border: none;
@@ -529,28 +576,37 @@ $historyRows = $pdo->query("
         text-transform: uppercase;
         height: 24px;
     }
+
     .moneyline .moneyfill { width: 110px; }
     .moneyline .blankfill { width: 70px; }
+
     .comments-head {
         padding: 8px 12px 2px;
         font-size: 16px;
         font-weight: 900;
         text-transform: uppercase;
     }
+
     .comments-head small {
         font-size: 12px;
         font-weight: 700;
     }
+
     .report-box {
         border: var(--border);
         margin-bottom: 18px;
+        background: rgba(255,255,255,.08);
     }
+
     .report-box .section-title { padding: 3px 8px; }
+
     .report-content { min-height: 120px; }
+
     .footer-lines {
         margin-top: 16px;
         padding: 0 2px;
     }
+
     .footer-row {
         display: flex;
         align-items: center;
@@ -561,6 +617,7 @@ $historyRows = $pdo->query("
         font-weight: 900;
         text-transform: uppercase;
     }
+
     .footer-row .fill {
         flex: 0 0 110px;
         border: none;
@@ -570,6 +627,7 @@ $historyRows = $pdo->query("
         font: 700 15px var(--font-main);
         text-transform: uppercase;
     }
+
     .sigline {
         flex: 1;
         border: none;
@@ -579,6 +637,7 @@ $historyRows = $pdo->query("
         font: 700 15px var(--font-main);
         text-transform: uppercase;
     }
+
     .attach-note {
         text-align: center;
         font-size: 16px;
@@ -586,6 +645,132 @@ $historyRows = $pdo->query("
         text-transform: uppercase;
         margin-top: 2px;
     }
+
+    /* Comptroller */
+    .comptroller-box {
+        border: var(--border);
+        margin-bottom: 18px;
+        background: rgba(255,255,255,.08);
+    }
+
+    .comptroller-title {
+        font-size: 18px;
+        font-weight: 900;
+        text-transform: uppercase;
+        padding: 4px 8px;
+        border-bottom: var(--thin);
+        text-align: left;
+        letter-spacing: .2px;
+    }
+
+    .comptroller-grid-wrap {
+        padding: 0;
+    }
+
+    .comptroller-grid {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .comptroller-grid th,
+    .comptroller-grid td {
+        border: var(--thin);
+        padding: 0;
+        height: 28px;
+        vertical-align: middle;
+        background: transparent;
+        text-align: center;
+    }
+
+    .comptroller-grid th {
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+        padding: 3px 4px;
+    }
+
+    .comptroller-grid .dollar {
+        width: 20px;
+        font-size: 14px;
+        font-weight: 900;
+    }
+
+    .comptroller-grid .name-col {
+        width: 18%;
+    }
+
+    .comptroller-grid .bal-col {
+        width: 12%;
+    }
+
+    .comptroller-grid .row-total-col {
+        width: 12%;
+    }
+
+    .comptroller-input,
+    .comptroller-money,
+    .comptroller-total {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background: transparent;
+        font: 700 13px var(--font-main);
+        padding: 3px 4px;
+        outline: none;
+        text-transform: uppercase;
+    }
+
+    .comptroller-money,
+    .comptroller-total {
+        text-align: right;
+        padding-right: 6px;
+    }
+
+    .comptroller-total {
+        font-weight: 900;
+    }
+
+    .comptroller-comments-head {
+        padding: 4px 8px 2px;
+        font-size: 13px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .comptroller-comments-head small {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: none;
+    }
+
+    .comptroller-comments {
+        min-height: 76px;
+        border-top: var(--thin);
+    }
+
+    .comptroller-summary {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px 2px;
+        font-size: 15px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .comptroller-summary input {
+        width: 120px;
+        border: none;
+        border-bottom: 2px solid #222;
+        background: transparent;
+        font: 700 15px var(--font-main);
+        outline: none;
+        text-align: right;
+        text-transform: uppercase;
+    }
+
     @media print {
         body { background: #fff; }
         .toolbar { display: none; }
@@ -758,13 +943,14 @@ $historyRows = $pdo->query("
         <section class="page">
             <?php
             $heights = [
-                'Chairperson Report' => 'report-area-lg',
+                'Chairperson Report' => 'report-area-md',
                 'Vice-Chair Report' => 'report-area-md',
-                'Housing Services Chair Report' => 'report-area-lg',
-                'Outreach Report' => 'report-area-lg',
+                'Housing Services Chair Report' => 'report-area-md',
+                'Outreach Report' => 'report-area-sm',
                 'Re-Entry Chair Report' => 'report-area-sm',
                 'Fundraising Chair Report' => 'report-area-sm',
             ];
+
             foreach ($reportSectionsPage2 as $title => $name):
             ?>
             <div class="report-box">
@@ -781,6 +967,116 @@ $historyRows = $pdo->query("
                     </div>
                 </div>
             </div>
+
+            <?php if ($name === 'outreach_report'): ?>
+                <div class="comptroller-box">
+                    <div class="comptroller-title">Comptroller Report</div>
+
+                    <div class="comptroller-grid-wrap">
+                        <table class="comptroller-grid">
+                            <tr>
+                                <th class="name-col">Name</th>
+                                <th colspan="2" class="bal-col">Balance</th>
+                                <th class="name-col">Name</th>
+                                <th colspan="2" class="bal-col">Balance</th>
+                                <th class="name-col">Name</th>
+                                <th colspan="2" class="bal-col">Balance</th>
+                                <th class="name-col">Name</th>
+                                <th colspan="2" class="bal-col">Balance</th>
+                                <th class="row-total-col">Row Total</th>
+                            </tr>
+
+                            <?php for ($i = 0; $i < 10; $i++): ?>
+                                <tr>
+                                    <td>
+                                        <input class="comptroller-input" name="comptroller_name_1_<?= $i ?>" value="<?= request_value($formData, 'comptroller_name_1_' . $i) ?>">
+                                    </td>
+                                    <td class="dollar">$</td>
+                                    <td>
+                                        <input
+                                            class="comptroller-money comptroller-balance"
+                                            data-row="<?= $i ?>"
+                                            name="comptroller_balance_1_<?= $i ?>"
+                                            value="<?= request_value($formData, 'comptroller_balance_1_' . $i) ?>"
+                                        >
+                                    </td>
+
+                                    <td>
+                                        <input class="comptroller-input" name="comptroller_name_2_<?= $i ?>" value="<?= request_value($formData, 'comptroller_name_2_' . $i) ?>">
+                                    </td>
+                                    <td class="dollar">$</td>
+                                    <td>
+                                        <input
+                                            class="comptroller-money comptroller-balance"
+                                            data-row="<?= $i ?>"
+                                            name="comptroller_balance_2_<?= $i ?>"
+                                            value="<?= request_value($formData, 'comptroller_balance_2_' . $i) ?>"
+                                        >
+                                    </td>
+
+                                    <td>
+                                        <input class="comptroller-input" name="comptroller_name_3_<?= $i ?>" value="<?= request_value($formData, 'comptroller_name_3_' . $i) ?>">
+                                    </td>
+                                    <td class="dollar">$</td>
+                                    <td>
+                                        <input
+                                            class="comptroller-money comptroller-balance"
+                                            data-row="<?= $i ?>"
+                                            name="comptroller_balance_3_<?= $i ?>"
+                                            value="<?= request_value($formData, 'comptroller_balance_3_' . $i) ?>"
+                                        >
+                                    </td>
+
+                                    <td>
+                                        <input class="comptroller-input" name="comptroller_name_4_<?= $i ?>" value="<?= request_value($formData, 'comptroller_name_4_' . $i) ?>">
+                                    </td>
+                                    <td class="dollar">$</td>
+                                    <td>
+                                        <input
+                                            class="comptroller-money comptroller-balance"
+                                            data-row="<?= $i ?>"
+                                            name="comptroller_balance_4_<?= $i ?>"
+                                            value="<?= request_value($formData, 'comptroller_balance_4_' . $i) ?>"
+                                        >
+                                    </td>
+
+                                    <td>
+                                        <input
+                                            class="comptroller-total"
+                                            id="comptroller_row_total_<?= $i ?>"
+                                            name="comptroller_row_total_<?= $i ?>"
+                                            value="<?= request_value($formData, 'comptroller_row_total_' . $i) ?>"
+                                            readonly
+                                        >
+                                    </td>
+                                </tr>
+                            <?php endfor; ?>
+                        </table>
+
+                        <div class="comptroller-comments-head">
+                            Comptroller Report Comments
+                            <small>(Record any warnings, contracts, and/or fines)</small>
+                        </div>
+
+                        <textarea class="comptroller-comments" name="comptroller_comments" oninput="autoGrow(this)"><?= request_value($formData, 'comptroller_comments') ?></textarea>
+
+                        <div class="comptroller-summary">
+                            Grand Total $
+                            <input type="text" id="comptroller_grand_total" name="comptroller_grand_total" value="<?= request_value($formData, 'comptroller_grand_total') ?>" readonly>
+                        </div>
+
+                        <div class="accept-row">
+                            <div class="lefttxt">Accept Comptroller Report</div>
+                            <div class="mmsp">
+                                <label><input class="mmsp-check" type="checkbox" name="comptroller_accept_checked" value="1" <?= is_checked($formData, 'comptroller_accept_checked') ?>></label>
+                                MM/S/P
+                                <input type="text" name="comptroller_accept" value="<?= request_value($formData, 'comptroller_accept') ?>">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <?php endforeach; ?>
         </section>
 
@@ -875,7 +1171,7 @@ function setStatus(message, type = 'warn') {
 
 function parseMoney(value) {
     if (value === null || value === undefined) return 0;
-    const cleaned = String(value).replace(/[^0-9.-]/g, '').trim();
+    const cleaned = String(value).replace(/[^0-9.\-]/g, '').trim();
     const num = parseFloat(cleaned);
     return isNaN(num) ? 0 : num;
 }
@@ -898,8 +1194,36 @@ function calculateBalances() {
     document.getElementById('savings_current').value = formatMoney(savingsCurrent);
 }
 
+function calculateComptrollerTotals() {
+    let grandTotal = 0;
+
+    for (let row = 0; row < 10; row++) {
+        let rowTotal = 0;
+
+        for (let col = 1; col <= 4; col++) {
+            const input = document.querySelector(`[name="comptroller_balance_${col}_${row}"]`);
+            if (input) {
+                rowTotal += parseMoney(input.value);
+            }
+        }
+
+        const rowTotalEl = document.getElementById(`comptroller_row_total_${row}`);
+        if (rowTotalEl) {
+            rowTotalEl.value = formatMoney(rowTotal);
+        }
+
+        grandTotal += rowTotal;
+    }
+
+    const grandEl = document.getElementById('comptroller_grand_total');
+    if (grandEl) {
+        grandEl.value = formatMoney(grandTotal);
+    }
+}
+
 function serializeForm() {
     calculateBalances();
+    calculateComptrollerTotals();
     const fd = new FormData(form);
     fd.set('action', 'autosave');
     return fd;
@@ -920,6 +1244,7 @@ async function doAutoSave() {
     if (isSaving) return;
 
     calculateBalances();
+    calculateComptrollerTotals();
 
     const fd = serializeForm();
     const snapshot = formSnapshot(fd);
@@ -974,6 +1299,7 @@ async function doAutoSave() {
 
 function queueAutoSave() {
     calculateBalances();
+    calculateComptrollerTotals();
     setStatus('Changes not saved yet...', 'warn');
     clearTimeout(autoSaveTimer);
     autoSaveTimer = setTimeout(doAutoSave, 800);
@@ -992,12 +1318,21 @@ function clearFormData() {
     }
 
     form.reset();
+
     document.querySelectorAll('textarea').forEach(el => {
         el.value = '';
         autoGrow(el);
     });
 
+    document.querySelectorAll('.comptroller-total').forEach(el => {
+        el.value = '';
+    });
+
+    const grandEl = document.getElementById('comptroller_grand_total');
+    if (grandEl) grandEl.value = '';
+
     calculateBalances();
+    calculateComptrollerTotals();
     setStatus('Form cleared. Enter meeting date to auto-save again.', 'warn');
     lastSerialized = '';
 }
@@ -1015,9 +1350,21 @@ document.querySelectorAll('.calc-money').forEach(el => {
     });
 });
 
+document.querySelectorAll('.comptroller-balance').forEach(el => {
+    el.addEventListener('input', () => {
+        calculateComptrollerTotals();
+        queueAutoSave();
+    });
+    el.addEventListener('change', () => {
+        calculateComptrollerTotals();
+        queueAutoSave();
+    });
+});
+
 document.querySelectorAll('#minutesForm input, #minutesForm textarea, #minutesForm select').forEach(el => {
     if (el.name === 'history_date') return;
     if (el.classList.contains('calc-money')) return;
+    if (el.classList.contains('comptroller-balance')) return;
     if (el.type === 'button' || el.type === 'submit' || el.type === 'reset' || el.type === 'hidden') return;
 
     const evt = (el.tagName === 'SELECT' || el.type === 'radio' || el.type === 'checkbox') ? 'change' : 'input';
@@ -1032,6 +1379,7 @@ document.querySelectorAll('#minutesForm input, #minutesForm textarea, #minutesFo
 });
 
 calculateBalances();
+calculateComptrollerTotals();
 
 window.addEventListener('beforeunload', function () {
     if (autoSaveTimer) {
