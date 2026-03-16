@@ -3,7 +3,7 @@ require_once __DIR__ . '/master_config.php';
 
 $baseDir = dirname(__DIR__);
 $ignore = ['.', '..', 'index.php', 'central_admin.php', 'login.php', 'logout.php', 'access_denied.php', 'users_admin.php', 'security.php', 'header.php', 'footer.php'];
-$ignoreDirs = ['extras', 'images', 'css', 'js', 'assets'];
+$ignoreDirs = ['extras', 'images', 'css', 'js', 'assets','uploads'];
 
 $allowedExtensions = ['php', 'pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'md'];
 
