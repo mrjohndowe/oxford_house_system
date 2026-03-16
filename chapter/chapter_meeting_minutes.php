@@ -3,7 +3,7 @@
  * Oxford House Colorado Chapter 14 Meeting Minutes
  * Fillable + MySQL save/load by meeting date
  * Manual save + auto-save + update existing record
- * Includes Comptroller Report with automatic math
+ * Includes revised Comptroller Report with automatic math
  */
 declare(strict_types=1);
 
@@ -11,6 +11,7 @@ declare(strict_types=1);
    DATABASE CONFIG
 ========================= */
 require_once __DIR__ . '/../extras/master_config.php';
+$logoPath = '../images/oxford_house_logo.png';
 
 /* =========================
    DB CONNECTION
@@ -87,6 +88,11 @@ function save_form(PDO $pdo, array $payload): array {
         'new_business_accept_checked',
         'adjourn_meeting_checked',
     ];
+
+    for ($i = 0; $i < 10; $i++) {
+        $checkboxFields[] = 'comp_warning_' . $i;
+        $checkboxFields[] = 'comp_contract_' . $i;
+    }
 
     foreach ($checkboxFields as $field) {
         $payload[$field] = isset($payload[$field]) ? '1' : '0';
@@ -646,129 +652,178 @@ $historyRows = $pdo->query("
         margin-top: 2px;
     }
 
-    /* Comptroller */
-    .comptroller-box {
-        border: var(--border);
+    /* Revised Comptroller */
+    .comptroller-sheet {
+        border: 1px solid #c9c9c9;
+        /* background: #fff; */
+        padding: 8px 8px 6px;
         margin-bottom: 18px;
-        background: rgba(255,255,255,.08);
     }
 
-    .comptroller-title {
-        font-size: 18px;
-        font-weight: 900;
-        text-transform: uppercase;
-        padding: 4px 8px;
-        border-bottom: var(--thin);
-        text-align: left;
-        letter-spacing: .2px;
+    .comptroller-meta {
+        width: 255px;
+        display: grid;
+        grid-template-columns: 110px 145px;
+        border: 1px solid #d3d3d3;
+        border-bottom: none;
+        margin-bottom: 10px;
     }
 
-    .comptroller-grid-wrap {
-        padding: 0;
+    .comptroller-meta .meta-label,
+    .comptroller-meta .meta-field {
+        min-height: 28px;
+        border-bottom: 1px solid #d3d3d3;
+        border-right: 1px solid #d3d3d3;
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 13px;
+        font-weight: 700;
+        /* background: #fff; */
     }
 
-    .comptroller-grid {
+    .comptroller-meta .meta-field:nth-child(2),
+    .comptroller-meta .meta-field:nth-child(4) {
+        border-right: none;
+    }
+
+    .meta-input {
         width: 100%;
+        border: none;
+        background: transparent;
+        outline: none;
+        font: 700 14px var(--font-main);
+        text-transform: uppercase;
+    }
+
+    .comptroller-head {
+        display: grid;
+        grid-template-columns: 82px 1fr auto;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+
+    .comptroller-logo {
+        width: 74px;
+        height: auto;
+        display: block;
+    }
+
+    .comptroller-heading {
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.1;
+    }
+
+    .comptroller-rate {
+        font-size: 17px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .comptroller-rate input {
+        width: 62px;
+        border: none;
+        border-bottom: 1px solid #111;
+        background: transparent;
+        outline: none;
+        font: 700 17px var(--font-main);
+        text-align: center;
+    }
+
+    .comptroller-ledger {
+        width: 120%;
         border-collapse: collapse;
         table-layout: fixed;
     }
 
-    .comptroller-grid th,
-    .comptroller-grid td {
-        border: var(--thin);
+    .comptroller-ledger th,
+    .comptroller-ledger td {
+        border: 1px solid #d7d7d7;
+        /* background: #fff; */
         padding: 0;
-        height: 28px;
-        vertical-align: middle;
-        background: transparent;
+    }
+
+    .comptroller-ledger th {
+        font-size: 11px;
+        font-weight: 700;
         text-align: center;
+        padding: 6px 4px;
+        line-height: 1.15;
     }
 
-    .comptroller-grid th {
-        font-size: 12px;
-        font-weight: 900;
-        text-transform: uppercase;
-        padding: 3px 4px;
+    .comptroller-ledger td {
+        height: 33px;
     }
 
-    .comptroller-grid .dollar {
-        width: 20px;
-        font-size: 14px;
-        font-weight: 900;
-    }
-
-    .comptroller-grid .name-col {
-        width: 18%;
-    }
-
-    .comptroller-grid .bal-col {
-        width: 12%;
-    }
-
-    .comptroller-grid .row-total-col {
-        width: 12%;
-    }
-
-    .comptroller-input,
-    .comptroller-money,
-    .comptroller-total {
+    .comp-input {
         width: 100%;
         height: 100%;
         border: none;
         background: transparent;
-        font: 700 13px var(--font-main);
-        padding: 3px 4px;
         outline: none;
+        font: 700 14px var(--font-main);
+        padding: 4px 5px;
         text-transform: uppercase;
     }
 
-    .comptroller-money,
-    .comptroller-total {
-        text-align: right;
-        padding-right: 6px;
+    .comp-center {
+        text-align: center;
     }
 
-    .comptroller-total {
-        font-weight: 900;
+    .comp-money {
+        text-align: center;
     }
 
-    .comptroller-comments-head {
-        padding: 4px 8px 2px;
+    .comp-check-cell {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .comp-check {
+        width: 16px;
+        height: 16px;
+        accent-color: #111;
+        margin: 0;
+    }
+
+    .comptroller-summary-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        padding: 8px 2px 4px;
+    }
+
+    .comptroller-summary-item {
         font-size: 13px;
-        font-weight: 900;
-        text-transform: uppercase;
-    }
-
-    .comptroller-comments-head small {
-        font-size: 11px;
         font-weight: 700;
-        text-transform: none;
-    }
-
-    .comptroller-comments {
-        min-height: 76px;
-        border-top: var(--thin);
-    }
-
-    .comptroller-summary {
+        text-transform: uppercase;
         display: flex;
-        justify-content: flex-end;
         align-items: center;
-        gap: 8px;
-        padding: 6px 10px 2px;
-        font-size: 15px;
-        font-weight: 900;
+        /* gap: 6px; */
+    }
+
+    .comptroller-summary-item input {
+        flex: 1;
+        border: none;
+        border-bottom: 1px solid #111;
+        background: transparent;
+        outline: none;
+        font: 700 14px var(--font-main);
+        text-align: right;
+    }
+
+    .comptroller-comments-title {
+        padding: 4px 2px 2px;
+        font-size: 14px;
+        font-weight: 700;
         text-transform: uppercase;
     }
 
-    .comptroller-summary input {
-        width: 120px;
-        border: none;
-        border-bottom: 2px solid #222;
-        background: transparent;
-        font: 700 15px var(--font-main);
-        outline: none;
-        text-align: right;
-        text-transform: uppercase;
+    .comptroller-comments-box {
+        min-height: 88px;
+        border-top: 1px solid #d7d7d7;
     }
 
     @media print {
@@ -969,109 +1024,122 @@ $historyRows = $pdo->query("
             </div>
 
             <?php if ($name === 'outreach_report'): ?>
-                <div class="comptroller-box">
-                    <div class="comptroller-title">Comptroller Report</div>
+                <div class="comptroller-sheet">
+                    <div class="section-title">Comptroller's Report</div>
+                    <!-- <div class="comptroller-meta">
+                        <div class="meta-label">Chapter</div>
+                        <div class="meta-field">
+                            <input class="meta-input" name="comptroller_chapter" value="<?= request_value($formData, 'comptroller_chapter', '14') ?>">
+                        </div>
+                        <div class="meta-label">Month / Year</div>
+                        <div class="meta-field">
+                            <input class="meta-input" name="comptroller_month_year" value="<?= request_value($formData, 'comptroller_month_year') ?>">
+                        </div>
+                    </div> -->
 
-                    <div class="comptroller-grid-wrap">
-                        <table class="comptroller-grid">
+                    <div class="comptroller-head">
+                        <!-- <img src="<?= h($logoPath) ?>" alt="Oxford House Logo" class="comptroller-logo"> -->
+                        <div class="comptroller-heading">
+                            <!-- Colorado Chapter <?= request_value($formData, 'comptroller_chapter', '14') ?> Comptroller Report -->
+                        </div>
+                        <div class="comptroller-rate">
+                            Base Dues $<input type="text" id="comptroller_rate" name="comptroller_rate" value="<?= request_value($formData, 'comptroller_rate', '35') ?>">
+                        </div>
+                    </div>
+
+                    <table class="comptroller-ledger">
+                        <colgroup>
+                            <col style="width:16%">
+                            <col style="width:7%">
+                            <col style="width:10%">
+                            <col style="width:10%">
+                            <col style="width:10%">
+                            <col style="width:11%">
+                            <col style="width:10%">
+                            <col style="width:10%">
+                            <col style="width:8%">
+                            <col style="width:8%">
+                        </colgroup>
+                        <thead>
                             <tr>
-                                <th class="name-col">Name</th>
-                                <th colspan="2" class="bal-col">Balance</th>
-                                <th class="name-col">Name</th>
-                                <th colspan="2" class="bal-col">Balance</th>
-                                <th class="name-col">Name</th>
-                                <th colspan="2" class="bal-col">Balance</th>
-                                <th class="name-col">Name</th>
-                                <th colspan="2" class="bal-col">Balance</th>
-                                <th class="row-total-col">Row Total</th>
+                                <th>House</th>
+                                <th>Beds</th>
+                                <th>Past Due</th>
+                                <th>Current</th>
+                                <th>Fines</th>
+                                <th>Total Owed</th>
+                                <th>Paid</th>
+                                <th>End Bal.</th>
+                                <!-- <th>Warn.</th>
+                                <th>Contract</th> -->
                             </tr>
-
+                        </thead>
+                        <tbody>
                             <?php for ($i = 0; $i < 10; $i++): ?>
                                 <tr>
                                     <td>
-                                        <input class="comptroller-input" name="comptroller_name_1_<?= $i ?>" value="<?= request_value($formData, 'comptroller_name_1_' . $i) ?>">
+                                        <input class="comp-input" name="comp_house_<?= $i ?>" value="<?= request_value($formData, 'comp_house_' . $i) ?>">
                                     </td>
-                                    <td class="dollar">$</td>
                                     <td>
-                                        <input
-                                            class="comptroller-money comptroller-balance"
-                                            data-row="<?= $i ?>"
-                                            name="comptroller_balance_1_<?= $i ?>"
-                                            value="<?= request_value($formData, 'comptroller_balance_1_' . $i) ?>"
-                                        >
+                                        <input class="comp-input comp-calc comp-center" name="comp_beds_<?= $i ?>" data-row="<?= $i ?>" value="<?= request_value($formData, 'comp_beds_' . $i) ?>">
                                     </td>
-
                                     <td>
-                                        <input class="comptroller-input" name="comptroller_name_2_<?= $i ?>" value="<?= request_value($formData, 'comptroller_name_2_' . $i) ?>">
+                                        <input class="comp-input comp-calc comp-money" name="comp_prev_bal_<?= $i ?>" data-row="<?= $i ?>" value="<?= request_value($formData, 'comp_prev_bal_' . $i) ?>">
                                     </td>
-                                    <td class="dollar">$</td>
                                     <td>
-                                        <input
-                                            class="comptroller-money comptroller-balance"
-                                            data-row="<?= $i ?>"
-                                            name="comptroller_balance_2_<?= $i ?>"
-                                            value="<?= request_value($formData, 'comptroller_balance_2_' . $i) ?>"
-                                        >
+                                        <input class="comp-input comp-money" id="comp_current_<?= $i ?>" name="comp_current_<?= $i ?>" value="<?= request_value($formData, 'comp_current_' . $i) ?>" readonly>
                                     </td>
-
                                     <td>
-                                        <input class="comptroller-input" name="comptroller_name_3_<?= $i ?>" value="<?= request_value($formData, 'comptroller_name_3_' . $i) ?>">
+                                        <input class="comp-input comp-calc comp-money" name="comp_fines_<?= $i ?>" data-row="<?= $i ?>" value="<?= request_value($formData, 'comp_fines_' . $i) ?>">
                                     </td>
-                                    <td class="dollar">$</td>
                                     <td>
-                                        <input
-                                            class="comptroller-money comptroller-balance"
-                                            data-row="<?= $i ?>"
-                                            name="comptroller_balance_3_<?= $i ?>"
-                                            value="<?= request_value($formData, 'comptroller_balance_3_' . $i) ?>"
-                                        >
+                                        <input class="comp-input comp-money" id="comp_total_<?= $i ?>" name="comp_total_<?= $i ?>" value="<?= request_value($formData, 'comp_total_' . $i) ?>" readonly>
                                     </td>
-
                                     <td>
-                                        <input class="comptroller-input" name="comptroller_name_4_<?= $i ?>" value="<?= request_value($formData, 'comptroller_name_4_' . $i) ?>">
+                                        <input class="comp-input comp-calc comp-money" name="comp_paid_<?= $i ?>" data-row="<?= $i ?>" value="<?= request_value($formData, 'comp_paid_' . $i) ?>">
                                     </td>
-                                    <td class="dollar">$</td>
                                     <td>
-                                        <input
-                                            class="comptroller-money comptroller-balance"
-                                            data-row="<?= $i ?>"
-                                            name="comptroller_balance_4_<?= $i ?>"
-                                            value="<?= request_value($formData, 'comptroller_balance_4_' . $i) ?>"
-                                        >
+                                        <input class="comp-input comp-money" id="comp_end_bal_<?= $i ?>" name="comp_end_bal_<?= $i ?>" value="<?= request_value($formData, 'comp_end_bal_' . $i) ?>" readonly>
                                     </td>
-
-                                    <td>
-                                        <input
-                                            class="comptroller-total"
-                                            id="comptroller_row_total_<?= $i ?>"
-                                            name="comptroller_row_total_<?= $i ?>"
-                                            value="<?= request_value($formData, 'comptroller_row_total_' . $i) ?>"
-                                            readonly
-                                        >
+                                    <!-- <td class="comp-check-cell">
+                                        <input type="checkbox" class="comp-check" name="comp_warning_<?= $i ?>" value="1" <?= is_checked($formData, 'comp_warning_' . $i) ?>>
                                     </td>
+                                    <td class="comp-check-cell">
+                                        <input type="checkbox" class="comp-check" name="comp_contract_<?= $i ?>" value="1" <?= is_checked($formData, 'comp_contract_' . $i) ?>>
+                                    </td> -->
                                 </tr>
                             <?php endfor; ?>
-                        </table>
+                        </tbody>
+                    </table>
 
-                        <div class="comptroller-comments-head">
-                            Comptroller Report Comments
-                            <small>(Record any warnings, contracts, and/or fines)</small>
+                    <div class="comptroller-summary-row">
+                        <div class="comptroller-summary-item">
+                            Total Current $
+                            <input type="text" id="comp_total_current" name="comp_total_current" value="<?= request_value($formData, 'comp_total_current') ?>" readonly>
                         </div>
-
-                        <textarea class="comptroller-comments" name="comptroller_comments" oninput="autoGrow(this)"><?= request_value($formData, 'comptroller_comments') ?></textarea>
-
-                        <div class="comptroller-summary">
-                            Grand Total $
-                            <input type="text" id="comptroller_grand_total" name="comptroller_grand_total" value="<?= request_value($formData, 'comptroller_grand_total') ?>" readonly>
+                        <div class="comptroller-summary-item">
+                            Total Owed $
+                            <input type="text" id="comp_total_owed" name="comp_total_owed" value="<?= request_value($formData, 'comp_total_owed') ?>" readonly>
                         </div>
+                        <div class="comptroller-summary-item">
+                            Total Paid $
+                            <input type="text" id="comp_total_paid" name="comp_total_paid" value="<?= request_value($formData, 'comp_total_paid') ?>" readonly>
+                        </div>
+                        <div class="comptroller-summary-item">
+                            Ending Balance $
+                            <input type="text" id="comp_total_end" name="comp_total_end" value="<?= request_value($formData, 'comp_total_end') ?>" readonly>
+                        </div>
+                    </div>
 
-                        <div class="accept-row">
-                            <div class="lefttxt">Accept Comptroller Report</div>
-                            <div class="mmsp">
-                                <label><input class="mmsp-check" type="checkbox" name="comptroller_accept_checked" value="1" <?= is_checked($formData, 'comptroller_accept_checked') ?>></label>
-                                MM/S/P
-                                <input type="text" name="comptroller_accept" value="<?= request_value($formData, 'comptroller_accept') ?>">
-                            </div>
+                    <div class="comptroller-comments-title">Comments / Actions</div>
+                    <textarea class="comptroller-comments-box" name="comptroller_comments" oninput="autoGrow(this)"><?= request_value($formData, 'comptroller_comments') ?></textarea>
+
+                    <div class="accept-row">
+                        <div class="lefttxt">Accept Comptroller Report</div>
+                        <div class="mmsp">
+                            <label><input class="mmsp-check" type="checkbox" name="comptroller_accept_checked" value="1" <?= is_checked($formData, 'comptroller_accept_checked') ?>></label>
+                            MM/S/P
+                            <input type="text" name="comptroller_accept" value="<?= request_value($formData, 'comptroller_accept') ?>">
                         </div>
                     </div>
                 </div>
@@ -1180,6 +1248,11 @@ function formatMoney(value) {
     return Number(value).toFixed(2);
 }
 
+function formatCompMoney(value) {
+    const num = Number(value || 0);
+    return num === 0 ? '0' : num.toFixed(2).replace(/\.00$/, '');
+}
+
 function calculateBalances() {
     const checkingBeginning = parseMoney(document.getElementById('checking_beginning').value);
     const checkingDeposit = parseMoney(document.getElementById('checking_deposit').value);
@@ -1194,36 +1267,52 @@ function calculateBalances() {
     document.getElementById('savings_current').value = formatMoney(savingsCurrent);
 }
 
-function calculateComptrollerTotals() {
-    let grandTotal = 0;
+function calculateComptrollerSection() {
+    const rate = parseMoney(document.getElementById('comptroller_rate')?.value || 0);
+
+    let totalCurrent = 0;
+    let totalOwed = 0;
+    let totalPaid = 0;
+    let totalEnd = 0;
 
     for (let row = 0; row < 10; row++) {
-        let rowTotal = 0;
+        const beds = parseMoney(document.querySelector(`[name="comp_beds_${row}"]`)?.value || 0);
+        const prev = parseMoney(document.querySelector(`[name="comp_prev_bal_${row}"]`)?.value || 0);
+        const fines = parseMoney(document.querySelector(`[name="comp_fines_${row}"]`)?.value || 0);
+        const paid = parseMoney(document.querySelector(`[name="comp_paid_${row}"]`)?.value || 0);
 
-        for (let col = 1; col <= 4; col++) {
-            const input = document.querySelector(`[name="comptroller_balance_${col}_${row}"]`);
-            if (input) {
-                rowTotal += parseMoney(input.value);
-            }
-        }
+        const current = beds * rate;
+        const owed = prev + current + fines;
+        const endBal = owed - paid;
 
-        const rowTotalEl = document.getElementById(`comptroller_row_total_${row}`);
-        if (rowTotalEl) {
-            rowTotalEl.value = formatMoney(rowTotal);
-        }
+        const currentEl = document.getElementById(`comp_current_${row}`);
+        const totalEl = document.getElementById(`comp_total_${row}`);
+        const endEl = document.getElementById(`comp_end_bal_${row}`);
 
-        grandTotal += rowTotal;
+        if (currentEl) currentEl.value = formatCompMoney(current);
+        if (totalEl) totalEl.value = formatCompMoney(owed);
+        if (endEl) endEl.value = formatCompMoney(endBal);
+
+        totalCurrent += current;
+        totalOwed += owed;
+        totalPaid += paid;
+        totalEnd += endBal;
     }
 
-    const grandEl = document.getElementById('comptroller_grand_total');
-    if (grandEl) {
-        grandEl.value = formatMoney(grandTotal);
-    }
+    const totalCurrentEl = document.getElementById('comp_total_current');
+    const totalOwedEl = document.getElementById('comp_total_owed');
+    const totalPaidEl = document.getElementById('comp_total_paid');
+    const totalEndEl = document.getElementById('comp_total_end');
+
+    if (totalCurrentEl) totalCurrentEl.value = formatCompMoney(totalCurrent);
+    if (totalOwedEl) totalOwedEl.value = formatCompMoney(totalOwed);
+    if (totalPaidEl) totalPaidEl.value = formatCompMoney(totalPaid);
+    if (totalEndEl) totalEndEl.value = formatCompMoney(totalEnd);
 }
 
 function serializeForm() {
     calculateBalances();
-    calculateComptrollerTotals();
+    calculateComptrollerSection();
     const fd = new FormData(form);
     fd.set('action', 'autosave');
     return fd;
@@ -1244,7 +1333,7 @@ async function doAutoSave() {
     if (isSaving) return;
 
     calculateBalances();
-    calculateComptrollerTotals();
+    calculateComptrollerSection();
 
     const fd = serializeForm();
     const snapshot = formSnapshot(fd);
@@ -1299,7 +1388,7 @@ async function doAutoSave() {
 
 function queueAutoSave() {
     calculateBalances();
-    calculateComptrollerTotals();
+    calculateComptrollerSection();
     setStatus('Changes not saved yet...', 'warn');
     clearTimeout(autoSaveTimer);
     autoSaveTimer = setTimeout(doAutoSave, 800);
@@ -1324,15 +1413,8 @@ function clearFormData() {
         autoGrow(el);
     });
 
-    document.querySelectorAll('.comptroller-total').forEach(el => {
-        el.value = '';
-    });
-
-    const grandEl = document.getElementById('comptroller_grand_total');
-    if (grandEl) grandEl.value = '';
-
     calculateBalances();
-    calculateComptrollerTotals();
+    calculateComptrollerSection();
     setStatus('Form cleared. Enter meeting date to auto-save again.', 'warn');
     lastSerialized = '';
 }
@@ -1350,13 +1432,13 @@ document.querySelectorAll('.calc-money').forEach(el => {
     });
 });
 
-document.querySelectorAll('.comptroller-balance').forEach(el => {
+document.querySelectorAll('.comp-calc, #comptroller_rate').forEach(el => {
     el.addEventListener('input', () => {
-        calculateComptrollerTotals();
+        calculateComptrollerSection();
         queueAutoSave();
     });
     el.addEventListener('change', () => {
-        calculateComptrollerTotals();
+        calculateComptrollerSection();
         queueAutoSave();
     });
 });
@@ -1364,7 +1446,8 @@ document.querySelectorAll('.comptroller-balance').forEach(el => {
 document.querySelectorAll('#minutesForm input, #minutesForm textarea, #minutesForm select').forEach(el => {
     if (el.name === 'history_date') return;
     if (el.classList.contains('calc-money')) return;
-    if (el.classList.contains('comptroller-balance')) return;
+    if (el.classList.contains('comp-calc')) return;
+    if (el.id === 'comptroller_rate') return;
     if (el.type === 'button' || el.type === 'submit' || el.type === 'reset' || el.type === 'hidden') return;
 
     const evt = (el.tagName === 'SELECT' || el.type === 'radio' || el.type === 'checkbox') ? 'change' : 'input';
@@ -1379,7 +1462,7 @@ document.querySelectorAll('#minutesForm input, #minutesForm textarea, #minutesFo
 });
 
 calculateBalances();
-calculateComptrollerTotals();
+calculateComptrollerSection();
 
 window.addEventListener('beforeunload', function () {
     if (autoSaveTimer) {
