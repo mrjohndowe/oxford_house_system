@@ -3,6 +3,7 @@
  * Oxford House Financial Status Report
  * Single-file PHP form with:
  * - MySQL save/update
+ * - Auto-save via AJAX
  * - History search by house name + from/to dates
  * - Load prior report into form
  * - Automatic calculations for totals sections
@@ -26,7 +27,7 @@ try {
         ]
     );
 } catch (PDOException $e) {
-    die('Database connection failed: ' . htmlspecialchars($e->getMessage()));
+    die('Database connection failed: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'));
 }
 
 /* =========================
@@ -87,6 +88,13 @@ function money_format_db(float $value): string {
     return number_format($value, 2, '.', '');
 }
 
+function json_response(array $payload, int $status = 200): never {
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 /* =========================
    FIELD MAP
 ========================= */
@@ -140,6 +148,218 @@ for ($i = 1; $i <= 6; $i++) {
 }
 
 /* =========================
+   SAVE LOGIC
+========================= */
+function build_form_data(array $source, array $fields): array {
+    $formData = [];
+    foreach ($fields as $f) {
+        $formData[$f] = trim((string)($source[$f] ?? ''));
+    }
+    return $formData;
+}
+
+function sanitize_and_calculate(array $formData): array {
+    $houseName = trim($formData['house_name'] ?? '');
+    $dateFrom = normalize_date($formData['date_from'] ?? '');
+    $dateTo   = normalize_date($formData['date_to'] ?? '');
+
+    if ($houseName === '') {
+        return [
+            'ok' => false,
+            'message' => 'House name is required.',
+            'type' => 'error',
+        ];
+    }
+
+    if (!$dateFrom || !$dateTo) {
+        return [
+            'ok' => false,
+            'message' => 'Both Dates Covered fields must be valid dates.',
+            'type' => 'error',
+        ];
+    }
+
+    $formData['house_name'] = $houseName;
+    $formData['date_from'] = $dateFrom;
+    $formData['date_to'] = $dateTo;
+
+    if (!in_array($formData['receipts_reviewed'] ?? '', ['yes', 'no'], true)) {
+        $formData['receipts_reviewed'] = '';
+    }
+
+    $moneyFields = [
+        'total_received',
+        'total_to_be_deposited',
+        'total_spent',
+        'total_due',
+        'sav_begin',
+        'sav_deposit',
+        'sav_withdraw',
+        'sav_interest',
+        'sav_end',
+        'pc_begin',
+        'pc_spent',
+        'pc_repl',
+        'pc_end',
+        'eq_begin_bal',
+        'eq_total_received',
+        'eq_total_spent',
+        'eq_ending_bal',
+    ];
+
+    foreach ($moneyFields as $mf) {
+        $formData[$mf] = money_clean($formData[$mf] ?? '');
+    }
+
+    for ($i = 1; $i <= 10; $i++) {
+        $formData["mr_amount_$i"] = money_clean($formData["mr_amount_$i"] ?? '');
+    }
+
+    for ($i = 1; $i <= 2; $i++) {
+        $formData["td_amount_$i"] = money_clean($formData["td_amount_$i"] ?? '');
+    }
+
+    for ($i = 1; $i <= 5; $i++) {
+        $formData["ae_amount_$i"] = money_clean($formData["ae_amount_$i"] ?? '');
+    }
+
+    for ($i = 1; $i <= 6; $i++) {
+        $formData["ub_amount_$i"] = money_clean($formData["ub_amount_$i"] ?? '');
+    }
+
+    $totalReceived = 0.0;
+    for ($i = 1; $i <= 10; $i++) {
+        $totalReceived += money_float($formData["mr_amount_$i"]);
+    }
+
+    $totalToBeDeposited = 0.0;
+    for ($i = 1; $i <= 2; $i++) {
+        $totalToBeDeposited += money_float($formData["td_amount_$i"]);
+    }
+
+    $totalSpent = 0.0;
+    for ($i = 1; $i <= 5; $i++) {
+        $totalSpent += money_float($formData["ae_amount_$i"]);
+    }
+
+    $totalDue = 0.0;
+    for ($i = 1; $i <= 6; $i++) {
+        $totalDue += money_float($formData["ub_amount_$i"]);
+    }
+
+    $savBegin    = money_float($formData['sav_begin']);
+    $savDeposit  = money_float($formData['sav_deposit']);
+    $savWithdraw = money_float($formData['sav_withdraw']);
+    $savInterest = money_float($formData['sav_interest']);
+    $savEnd      = $savBegin + $savDeposit - $savWithdraw + $savInterest;
+
+    $pcBegin = money_float($formData['pc_begin']);
+    $pcSpent = money_float($formData['pc_spent']);
+    $pcRepl  = money_float($formData['pc_repl']);
+    $pcEnd   = $pcBegin - $pcSpent + $pcRepl;
+
+    $eqBeginBal      = money_float($formData['eq_begin_bal']);
+    $eqTotalReceived = $totalReceived;
+    $eqTotalSpent    = $totalSpent;
+    $eqEndingBal     = $eqBeginBal + $eqTotalReceived - $eqTotalSpent;
+
+    $formData['total_received'] = money_format_db($totalReceived);
+    $formData['total_to_be_deposited'] = money_format_db($totalToBeDeposited);
+    $formData['total_spent'] = money_format_db($totalSpent);
+    $formData['total_due'] = money_format_db($totalDue);
+    $formData['sav_end'] = money_format_db($savEnd);
+    $formData['pc_end'] = money_format_db($pcEnd);
+    $formData['eq_total_received'] = money_format_db($eqTotalReceived);
+    $formData['eq_total_spent'] = money_format_db($eqTotalSpent);
+    $formData['eq_ending_bal'] = money_format_db($eqEndingBal);
+
+    return [
+        'ok' => true,
+        'formData' => $formData,
+        'houseName' => $houseName,
+        'dateFrom' => $dateFrom,
+        'dateTo' => $dateTo,
+    ];
+}
+
+function save_financial_report(PDO $pdo, array $formData): array {
+    $prepared = sanitize_and_calculate($formData);
+
+    if (!$prepared['ok']) {
+        return $prepared;
+    }
+
+    $houseName = $prepared['houseName'];
+    $dateFrom  = $prepared['dateFrom'];
+    $dateTo    = $prepared['dateTo'];
+    $cleanData = $prepared['formData'];
+
+    $json = json_encode($cleanData, JSON_UNESCAPED_UNICODE);
+
+    try {
+        $check = $pdo->prepare("
+            SELECT id
+            FROM oxford_house_financial_reports
+            WHERE house_name = ? AND date_from = ? AND date_to = ?
+            LIMIT 1
+        ");
+        $check->execute([$houseName, $dateFrom, $dateTo]);
+        $existing = $check->fetch();
+
+        if ($existing) {
+            $update = $pdo->prepare("
+                UPDATE oxford_house_financial_reports
+                SET report_data = ?, updated_at = NOW()
+                WHERE id = ?
+            ");
+            $update->execute([$json, $existing['id']]);
+
+            return [
+                'ok' => true,
+                'type' => 'success',
+                'message' => 'Report auto-saved.',
+                'id' => (int)$existing['id'],
+                'formData' => $cleanData,
+                'mode' => 'updated',
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+        }
+
+        $insert = $pdo->prepare("
+            INSERT INTO oxford_house_financial_reports
+            (house_name, date_from, date_to, report_data)
+            VALUES (?, ?, ?, ?)
+        ");
+        $insert->execute([$houseName, $dateFrom, $dateTo, $json]);
+
+        return [
+            'ok' => true,
+            'type' => 'success',
+            'message' => 'Report auto-saved.',
+            'id' => (int)$pdo->lastInsertId(),
+            'formData' => $cleanData,
+            'mode' => 'inserted',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+    } catch (PDOException $e) {
+        return [
+            'ok' => false,
+            'type' => 'error',
+            'message' => 'Save failed: ' . $e->getMessage(),
+        ];
+    }
+}
+
+/* =========================
+   AJAX AUTO SAVE
+========================= */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['ajax_action'] ?? '') === 'autosave') {
+    $formData = build_form_data($_POST, $fields);
+    $result = save_financial_report($pdo, $formData);
+    json_response($result, $result['ok'] ? 200 : 422);
+}
+
+/* =========================
    STATE
 ========================= */
 $message = '';
@@ -185,157 +405,22 @@ if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
 }
 
 /* =========================
-   SAVE RECORD
+   MANUAL SAVE RECORD
 ========================= */
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    foreach ($fields as $f) {
-        $formData[$f] = trim((string)($_POST[$f] ?? ''));
-    }
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['ajax_action'] ?? '') !== 'autosave') {
+    $formData = build_form_data($_POST, $fields);
+    $result = save_financial_report($pdo, $formData);
 
-    $houseName = trim($formData['house_name']);
-    $dateFrom = normalize_date($formData['date_from']);
-    $dateTo   = normalize_date($formData['date_to']);
-
-    if ($houseName === '') {
-        $message = 'House name is required.';
-        $messageType = 'error';
-    } elseif (!$dateFrom || !$dateTo) {
-        $message = 'Both Dates Covered fields must be valid dates.';
-        $messageType = 'error';
+    if ($result['ok']) {
+        $formData = $result['formData'];
+        $loadedId = (int)$result['id'];
+        $message = ($result['mode'] === 'updated')
+            ? 'Report updated successfully.'
+            : 'Report saved successfully.';
+        $messageType = 'success';
     } else {
-        $formData['date_from'] = $dateFrom;
-        $formData['date_to'] = $dateTo;
-
-        if (!in_array($formData['receipts_reviewed'], ['yes', 'no'], true)) {
-            $formData['receipts_reviewed'] = '';
-        }
-
-        $moneyFields = [
-            'total_received',
-            'total_to_be_deposited',
-            'total_spent',
-            'total_due',
-            'sav_begin',
-            'sav_deposit',
-            'sav_withdraw',
-            'sav_interest',
-            'sav_end',
-            'pc_begin',
-            'pc_spent',
-            'pc_repl',
-            'pc_end',
-            'eq_begin_bal',
-            'eq_total_received',
-            'eq_total_spent',
-            'eq_ending_bal',
-        ];
-
-        foreach ($moneyFields as $mf) {
-            $formData[$mf] = money_clean($formData[$mf]);
-        }
-
-        for ($i = 1; $i <= 10; $i++) {
-            $formData["mr_amount_$i"] = money_clean($formData["mr_amount_$i"]);
-        }
-
-        for ($i = 1; $i <= 2; $i++) {
-            $formData["td_amount_$i"] = money_clean($formData["td_amount_$i"]);
-        }
-
-        for ($i = 1; $i <= 5; $i++) {
-            $formData["ae_amount_$i"] = money_clean($formData["ae_amount_$i"]);
-        }
-
-        for ($i = 1; $i <= 6; $i++) {
-            $formData["ub_amount_$i"] = money_clean($formData["ub_amount_$i"]);
-        }
-
-        /* =========================
-           SERVER-SIDE CALCULATIONS
-        ========================= */
-        $totalReceived = 0.0;
-        for ($i = 1; $i <= 10; $i++) {
-            $totalReceived += money_float($formData["mr_amount_$i"]);
-        }
-
-        $totalToBeDeposited = 0.0;
-        for ($i = 1; $i <= 2; $i++) {
-            $totalToBeDeposited += money_float($formData["td_amount_$i"]);
-        }
-
-        $totalSpent = 0.0;
-        for ($i = 1; $i <= 5; $i++) {
-            $totalSpent += money_float($formData["ae_amount_$i"]);
-        }
-
-        $totalDue = 0.0;
-        for ($i = 1; $i <= 6; $i++) {
-            $totalDue += money_float($formData["ub_amount_$i"]);
-        }
-
-        $savBegin    = money_float($formData['sav_begin']);
-        $savDeposit  = money_float($formData['sav_deposit']);
-        $savWithdraw = money_float($formData['sav_withdraw']);
-        $savInterest = money_float($formData['sav_interest']);
-        $savEnd      = $savBegin + $savDeposit - $savWithdraw + $savInterest;
-
-        $pcBegin = money_float($formData['pc_begin']);
-        $pcSpent = money_float($formData['pc_spent']);
-        $pcRepl  = money_float($formData['pc_repl']);
-        $pcEnd   = $pcBegin - $pcSpent + $pcRepl;
-
-        $eqBeginBal      = money_float($formData['eq_begin_bal']);
-        $eqTotalReceived = $totalReceived;
-        $eqTotalSpent    = $totalSpent;
-        $eqEndingBal     = $eqBeginBal + $eqTotalReceived - $eqTotalSpent;
-
-        $formData['total_received'] = money_format_db($totalReceived);
-        $formData['total_to_be_deposited'] = money_format_db($totalToBeDeposited);
-        $formData['total_spent'] = money_format_db($totalSpent);
-        $formData['total_due'] = money_format_db($totalDue);
-        $formData['sav_end'] = money_format_db($savEnd);
-        $formData['pc_end'] = money_format_db($pcEnd);
-        $formData['eq_total_received'] = money_format_db($eqTotalReceived);
-        $formData['eq_total_spent'] = money_format_db($eqTotalSpent);
-        $formData['eq_ending_bal'] = money_format_db($eqEndingBal);
-
-        $json = json_encode($formData, JSON_UNESCAPED_UNICODE);
-
-        try {
-            $check = $pdo->prepare("
-                SELECT id
-                FROM oxford_house_financial_reports
-                WHERE house_name = ? AND date_from = ? AND date_to = ?
-                LIMIT 1
-            ");
-            $check->execute([$houseName, $dateFrom, $dateTo]);
-            $existing = $check->fetch();
-
-            if ($existing) {
-                $update = $pdo->prepare("
-                    UPDATE oxford_house_financial_reports
-                    SET report_data = ?, updated_at = NOW()
-                    WHERE id = ?
-                ");
-                $update->execute([$json, $existing['id']]);
-                $loadedId = (int)$existing['id'];
-                $message = 'Report updated successfully.';
-                $messageType = 'success';
-            } else {
-                $insert = $pdo->prepare("
-                    INSERT INTO oxford_house_financial_reports
-                    (house_name, date_from, date_to, report_data)
-                    VALUES (?, ?, ?, ?)
-                ");
-                $insert->execute([$houseName, $dateFrom, $dateTo, $json]);
-                $loadedId = (int)$pdo->lastInsertId();
-                $message = 'Report saved successfully.';
-                $messageType = 'success';
-            }
-        } catch (PDOException $e) {
-            $message = 'Save failed: ' . $e->getMessage();
-            $messageType = 'error';
-        }
+        $message = $result['message'];
+        $messageType = 'error';
     }
 }
 
@@ -791,6 +876,7 @@ $historyRows = $stmt->fetchAll();
       justify-content: center;
       margin-bottom: 12px;
       flex-wrap: wrap;
+      align-items: center;
     }
     .btn {
       border: 2px solid #000;
@@ -813,6 +899,29 @@ $historyRows = $stmt->fetchAll();
     .calcReadonly {
       background: transparent;
       cursor: default;
+    }
+    .saveStatus {
+      border: 2px solid #000;
+      background: #fff;
+      padding: 8px 12px;
+      font-weight: 800;
+      min-width: 220px;
+      text-align: center;
+    }
+    .saveStatus.saving {
+      border-color: #9a6700;
+      color: #9a6700;
+    }
+    .saveStatus.saved {
+      border-color: #0a7a28;
+      color: #0a7a28;
+    }
+    .saveStatus.error {
+      border-color: #b00020;
+      color: #b00020;
+    }
+    .saveStatus.idle {
+      color: #333;
     }
   </style>
 </head>
@@ -882,6 +991,7 @@ $historyRows = $stmt->fetchAll();
 
     <div class="panel">
       <div class="panelTitle">Instructions</div>
+      <p><strong>Auto-save behavior:</strong> The form auto-saves while typing after House Name, From Date, and To Date are filled in.</p>
       <p><strong>Save behavior:</strong> If the same House Name + From Date + To Date already exists, the record is updated instead of duplicated.</p>
       <p><strong>History behavior:</strong> Search uses house name and date range so you can find prior reports quickly.</p>
       <p><strong>Note:</strong> This version stores the full report body as JSON, which avoids creating an oversized table with hundreds of columns.</p>
@@ -892,9 +1002,10 @@ $historyRows = $stmt->fetchAll();
   <div class="controls no-print">
     <button class="btn" type="button" onclick="window.print()">Print</button>
     <button class="btn" type="button" onclick="clearFinancialForm()">Clear</button>
+    <div id="saveStatus" class="saveStatus idle">Auto-save ready</div>
   </div>
 
-  <form id="fsrForm" method="post">
+  <form id="fsrForm" method="post" autocomplete="off">
     <div class="page">
 
       <div class="topline">
@@ -948,9 +1059,9 @@ $historyRows = $stmt->fetchAll();
             <tbody>
               <?php for ($i=1; $i<=10; $i++): ?>
                 <tr>
-                  <td><input class="cellInput center" name="mr_date_<?= $i ?>" value="<?= field($formData, "mr_date_$i") ?>"></td>
-                  <td><input class="cellInput" name="mr_source_<?= $i ?>" value="<?= field($formData, "mr_source_$i") ?>"></td>
-                  <td><input class="cellInput right calc-input mr-amount" name="mr_amount_<?= $i ?>" value="<?= field($formData, "mr_amount_$i") ?>" inputmode="decimal"></td>
+                  <td><input class="cellInput center autosave-field" name="mr_date_<?= $i ?>" value="<?= field($formData, "mr_date_$i") ?>"></td>
+                  <td><input class="cellInput autosave-field" name="mr_source_<?= $i ?>" value="<?= field($formData, "mr_source_$i") ?>"></td>
+                  <td><input class="cellInput right calc-input mr-amount autosave-field" name="mr_amount_<?= $i ?>" value="<?= field($formData, "mr_amount_$i") ?>" inputmode="decimal"></td>
                 </tr>
               <?php endfor; ?>
             </tbody>
@@ -979,9 +1090,9 @@ $historyRows = $stmt->fetchAll();
               <tbody>
                 <?php for ($i=1; $i<=2; $i++): ?>
                   <tr>
-                    <td><input class="cellInput center" name="td_date_<?= $i ?>" value="<?= field($formData, "td_date_$i") ?>"></td>
-                    <td><input class="cellInput" name="td_source_<?= $i ?>" value="<?= field($formData, "td_source_$i") ?>"></td>
-                    <td><input class="cellInput right calc-input td-amount" name="td_amount_<?= $i ?>" value="<?= field($formData, "td_amount_$i") ?>" inputmode="decimal"></td>
+                    <td><input class="cellInput center autosave-field" name="td_date_<?= $i ?>" value="<?= field($formData, "td_date_$i") ?>"></td>
+                    <td><input class="cellInput autosave-field" name="td_source_<?= $i ?>" value="<?= field($formData, "td_source_$i") ?>"></td>
+                    <td><input class="cellInput right calc-input td-amount autosave-field" name="td_amount_<?= $i ?>" value="<?= field($formData, "td_amount_$i") ?>" inputmode="decimal"></td>
                   </tr>
                 <?php endfor; ?>
               </tbody>
@@ -1015,10 +1126,10 @@ $historyRows = $stmt->fetchAll();
             <tbody>
               <?php for ($i=1; $i<=5; $i++): ?>
                 <tr>
-                  <td><input class="cellInput center" name="ae_date_<?= $i ?>" value="<?= field($formData, "ae_date_$i") ?>"></td>
-                  <td><input class="cellInput" name="ae_to_<?= $i ?>" value="<?= field($formData, "ae_to_$i") ?>"></td>
-                  <td><input class="cellInput center" name="ae_check_<?= $i ?>" value="<?= field($formData, "ae_check_$i") ?>"></td>
-                  <td><input class="cellInput right calc-input ae-amount" name="ae_amount_<?= $i ?>" value="<?= field($formData, "ae_amount_$i") ?>" inputmode="decimal"></td>
+                  <td><input class="cellInput center autosave-field" name="ae_date_<?= $i ?>" value="<?= field($formData, "ae_date_$i") ?>"></td>
+                  <td><input class="cellInput autosave-field" name="ae_to_<?= $i ?>" value="<?= field($formData, "ae_to_$i") ?>"></td>
+                  <td><input class="cellInput center autosave-field" name="ae_check_<?= $i ?>" value="<?= field($formData, "ae_check_$i") ?>"></td>
+                  <td><input class="cellInput right calc-input ae-amount autosave-field" name="ae_amount_<?= $i ?>" value="<?= field($formData, "ae_amount_$i") ?>" inputmode="decimal"></td>
                 </tr>
               <?php endfor; ?>
             </tbody>
@@ -1048,9 +1159,9 @@ $historyRows = $stmt->fetchAll();
               <tbody>
                 <?php for ($i=1; $i<=6; $i++): ?>
                   <tr>
-                    <td><input class="cellInput" name="ub_to_<?= $i ?>" value="<?= field($formData, "ub_to_$i") ?>"></td>
-                    <td><input class="cellInput center" name="ub_due_<?= $i ?>" value="<?= field($formData, "ub_due_$i") ?>"></td>
-                    <td><input class="cellInput right calc-input ub-amount" name="ub_amount_<?= $i ?>" value="<?= field($formData, "ub_amount_$i") ?>" inputmode="decimal"></td>
+                    <td><input class="cellInput autosave-field" name="ub_to_<?= $i ?>" value="<?= field($formData, "ub_to_$i") ?>"></td>
+                    <td><input class="cellInput center autosave-field" name="ub_due_<?= $i ?>" value="<?= field($formData, "ub_due_$i") ?>"></td>
+                    <td><input class="cellInput right calc-input ub-amount autosave-field" name="ub_amount_<?= $i ?>" value="<?= field($formData, "ub_amount_$i") ?>" inputmode="decimal"></td>
                   </tr>
                 <?php endfor; ?>
               </tbody>
@@ -1072,19 +1183,19 @@ $historyRows = $stmt->fetchAll();
           <table class="miniTable">
             <tr>
               <td class="label">Beginning Balance</td>
-              <td class="valueBox"><input class="calc-input" name="sav_begin" id="sav_begin" value="<?= field($formData, 'sav_begin') ?>" inputmode="decimal"></td>
+              <td class="valueBox"><input class="calc-input autosave-field" name="sav_begin" id="sav_begin" value="<?= field($formData, 'sav_begin') ?>" inputmode="decimal"></td>
             </tr>
             <tr>
               <td class="label">Deposit Amount</td>
-              <td class="valueBox"><input class="calc-input" name="sav_deposit" id="sav_deposit" value="<?= field($formData, 'sav_deposit') ?>" inputmode="decimal"></td>
+              <td class="valueBox"><input class="calc-input autosave-field" name="sav_deposit" id="sav_deposit" value="<?= field($formData, 'sav_deposit') ?>" inputmode="decimal"></td>
             </tr>
             <tr>
               <td class="label">Withdrawal Amount</td>
-              <td class="valueBox"><input class="calc-input" name="sav_withdraw" id="sav_withdraw" value="<?= field($formData, 'sav_withdraw') ?>" inputmode="decimal"></td>
+              <td class="valueBox"><input class="calc-input autosave-field" name="sav_withdraw" id="sav_withdraw" value="<?= field($formData, 'sav_withdraw') ?>" inputmode="decimal"></td>
             </tr>
             <tr>
               <td class="label">Interest Earned</td>
-              <td class="valueBox"><input class="calc-input" name="sav_interest" id="sav_interest" value="<?= field($formData, 'sav_interest') ?>" inputmode="decimal"></td>
+              <td class="valueBox"><input class="calc-input autosave-field" name="sav_interest" id="sav_interest" value="<?= field($formData, 'sav_interest') ?>" inputmode="decimal"></td>
             </tr>
             <tr>
               <td class="label">Ending Balance</td>
@@ -1098,15 +1209,15 @@ $historyRows = $stmt->fetchAll();
           <table class="miniTable">
             <tr>
               <td class="label">Beginning Cash</td>
-              <td class="valueBox"><input class="calc-input" name="pc_begin" id="pc_begin" value="<?= field($formData, 'pc_begin') ?>" inputmode="decimal"></td>
+              <td class="valueBox"><input class="calc-input autosave-field" name="pc_begin" id="pc_begin" value="<?= field($formData, 'pc_begin') ?>" inputmode="decimal"></td>
             </tr>
             <tr>
               <td class="label">Cash Spent</td>
-              <td class="valueBox"><input class="calc-input" name="pc_spent" id="pc_spent" value="<?= field($formData, 'pc_spent') ?>" inputmode="decimal"></td>
+              <td class="valueBox"><input class="calc-input autosave-field" name="pc_spent" id="pc_spent" value="<?= field($formData, 'pc_spent') ?>" inputmode="decimal"></td>
             </tr>
             <tr>
               <td class="label">Cash Replenished</td>
-              <td class="valueBox"><input class="calc-input" name="pc_repl" id="pc_repl" value="<?= field($formData, 'pc_repl') ?>" inputmode="decimal"></td>
+              <td class="valueBox"><input class="calc-input autosave-field" name="pc_repl" id="pc_repl" value="<?= field($formData, 'pc_repl') ?>" inputmode="decimal"></td>
             </tr>
             <tr>
               <td class="label">Ending Cash</td>
@@ -1119,11 +1230,11 @@ $historyRows = $stmt->fetchAll();
                   <span class="yesNo">
                     <span>YES</span>
                     <span class="square">
-                      <input type="radio" name="receipts_reviewed" value="yes" <?= (raw_field($formData, 'receipts_reviewed') === 'yes' ? 'checked' : '') ?>>
+                      <input class="autosave-field" type="radio" name="receipts_reviewed" value="yes" <?= (raw_field($formData, 'receipts_reviewed') === 'yes' ? 'checked' : '') ?>>
                     </span>
                     <span>NO</span>
                     <span class="square">
-                      <input type="radio" name="receipts_reviewed" value="no" <?= (raw_field($formData, 'receipts_reviewed') === 'no' ? 'checked' : '') ?>>
+                      <input class="autosave-field" type="radio" name="receipts_reviewed" value="no" <?= (raw_field($formData, 'receipts_reviewed') === 'no' ? 'checked' : '') ?>>
                     </span>
                   </span>
                 </div>
@@ -1135,7 +1246,7 @@ $historyRows = $stmt->fetchAll();
       </div>
 
       <div class="equation">
-        <div class="eqBox"><input class="calc-input" name="eq_begin_bal" id="eq_begin_bal" value="<?= field($formData, 'eq_begin_bal') ?>" aria-label="Beginning balance" inputmode="decimal"></div>
+        <div class="eqBox"><input class="calc-input autosave-field" name="eq_begin_bal" id="eq_begin_bal" value="<?= field($formData, 'eq_begin_bal') ?>" aria-label="Beginning balance" inputmode="decimal"></div>
         <div class="eqOp">+</div>
         <div class="eqBox"><input class="calcReadonly" name="eq_total_received" id="eq_total_received" value="<?= field($formData, 'eq_total_received') ?>" aria-label="Total received" readonly></div>
         <div class="eqOp">-</div>
@@ -1167,6 +1278,11 @@ $historyRows = $stmt->fetchAll();
 
 <script>
 (function () {
+  let autoSaveTimer = null;
+  let autoSaveInProgress = false;
+  let pendingAutoSave = false;
+  let lastSavedPayload = '';
+
   function parseMoney(value) {
     if (value === null || value === undefined) return 0;
     const cleaned = String(value).replace(/[^0-9.\-]/g, '');
@@ -1226,19 +1342,156 @@ $historyRows = $stmt->fetchAll();
     setValue('eq_ending_bal', eqEndingBal);
   }
 
+  function setSaveStatus(message, type) {
+    const el = document.getElementById('saveStatus');
+    if (!el) return;
+    el.textContent = message;
+    el.className = 'saveStatus ' + (type || 'idle');
+  }
+
+  function hasRequiredFields() {
+    const form = document.getElementById('fsrForm');
+    if (!form) return false;
+
+    const house = (form.querySelector('[name="house_name"]')?.value || '').trim();
+    const from = (form.querySelector('[name="date_from"]')?.value || '').trim();
+    const to = (form.querySelector('[name="date_to"]')?.value || '').trim();
+
+    return house !== '' && from !== '' && to !== '';
+  }
+
+  function buildPayload() {
+    const form = document.getElementById('fsrForm');
+    const formData = new FormData(form);
+    formData.set('ajax_action', 'autosave');
+    return formData;
+  }
+
+  function payloadSignature(formData) {
+    return new URLSearchParams(formData).toString();
+  }
+
+  async function doAutoSave() {
+    if (!hasRequiredFields()) {
+      setSaveStatus('Enter House Name and both dates to auto-save', 'idle');
+      return;
+    }
+
+    calculateAll();
+
+    const payload = buildPayload();
+    const signature = payloadSignature(payload);
+
+    if (signature === lastSavedPayload) {
+      setSaveStatus('All changes saved', 'saved');
+      return;
+    }
+
+    if (autoSaveInProgress) {
+      pendingAutoSave = true;
+      return;
+    }
+
+    autoSaveInProgress = true;
+    setSaveStatus('Saving...', 'saving');
+
+    try {
+      const response = await fetch(window.location.href, {
+        method: 'POST',
+        body: payload,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.message || 'Auto-save failed.');
+      }
+
+      lastSavedPayload = signature;
+
+      if (result.formData) {
+        [
+          'total_received',
+          'total_to_be_deposited',
+          'total_spent',
+          'total_due',
+          'sav_end',
+          'pc_end',
+          'eq_total_received',
+          'eq_total_spent',
+          'eq_ending_bal'
+        ].forEach(function (name) {
+          const el = document.querySelector('[name="' + name + '"]');
+          if (el && Object.prototype.hasOwnProperty.call(result.formData, name)) {
+            el.value = result.formData[name];
+          }
+        });
+      }
+
+      setSaveStatus('Auto-saved successfully', 'saved');
+    } catch (error) {
+      setSaveStatus(error.message || 'Auto-save failed', 'error');
+    } finally {
+      autoSaveInProgress = false;
+      if (pendingAutoSave) {
+        pendingAutoSave = false;
+        scheduleAutoSave();
+      }
+    }
+  }
+
+  function scheduleAutoSave() {
+    clearTimeout(autoSaveTimer);
+    setSaveStatus('Changes pending...', 'saving');
+    autoSaveTimer = setTimeout(doAutoSave, 1200);
+  }
+
   window.clearFinancialForm = function () {
     const form = document.getElementById('fsrForm');
     if (!form) return;
     form.reset();
-    setTimeout(calculateAll, 0);
+    lastSavedPayload = '';
+    setTimeout(function () {
+      calculateAll();
+      setSaveStatus('Form cleared', 'idle');
+    }, 0);
   };
 
   document.querySelectorAll('.calc-input').forEach(function (el) {
-    el.addEventListener('input', calculateAll);
-    el.addEventListener('change', calculateAll);
+    el.addEventListener('input', function () {
+      calculateAll();
+      scheduleAutoSave();
+    });
+    el.addEventListener('change', function () {
+      calculateAll();
+      scheduleAutoSave();
+    });
   });
 
-  document.addEventListener('DOMContentLoaded', calculateAll);
+  document.querySelectorAll('.autosave-field').forEach(function (el) {
+    if (!el.classList.contains('calc-input')) {
+      el.addEventListener('input', scheduleAutoSave);
+      el.addEventListener('change', scheduleAutoSave);
+    }
+  });
+
+  document.querySelectorAll('[name="house_name"], [name="date_from"], [name="date_to"]').forEach(function (el) {
+    el.addEventListener('input', scheduleAutoSave);
+    el.addEventListener('change', scheduleAutoSave);
+  });
+
+  document.getElementById('fsrForm')?.addEventListener('submit', function () {
+    setSaveStatus('Saving...', 'saving');
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    calculateAll();
+    setSaveStatus('Auto-save ready', 'idle');
+  });
+
   calculateAll();
 })();
 </script>
