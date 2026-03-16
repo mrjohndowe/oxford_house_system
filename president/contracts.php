@@ -9,7 +9,8 @@ declare(strict_types=1);
  * - History uses a true dropdown select
  * - Reload and edit old sheets
  * - Upload scanned contract copies
- * - If a saved history record has an uploaded copy, it shows the uploaded copy instead of the form
+ * - If a record has an uploaded scanned copy, only the uploaded copy is shown
+ * - Once a scanned copy exists, the contract record is locked from editing
  * - Uploaded scanned copy cannot be replaced or deleted once one exists
  * - Scanned copy can be stamped as CONTRACT FULFILLED or VOIDED
  * - Stamp action is password protected
@@ -134,6 +135,48 @@ function getClientIpAddress(): string
     return '';
 }
 
+function getExistingContractById(PDO $pdo, int $id): ?array
+{
+    if ($id <= 0) {
+        return null;
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT *
+        FROM oxford_member_financial_contracts
+        WHERE id = :id
+        LIMIT 1
+    ");
+    $stmt->execute(['id' => $id]);
+    $row = $stmt->fetch();
+
+    return $row ?: null;
+}
+
+function getExistingContractByIdentity(PDO $pdo, string $memberName, string $houseName, string $contractDate): ?array
+{
+    if ($memberName === '' || $houseName === '' || $contractDate === '') {
+        return null;
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT *
+        FROM oxford_member_financial_contracts
+        WHERE member_name = :member_name
+          AND house_name = :house_name
+          AND contract_date = :contract_date
+        LIMIT 1
+    ");
+    $stmt->execute([
+        'member_name' => $memberName,
+        'house_name' => $houseName,
+        'contract_date' => $contractDate,
+    ]);
+    $row = $stmt->fetch();
+
+    return $row ?: null;
+}
+
 function saveContract(PDO $pdo, array $data, ?array $file, string $uploadDir, string $uploadWebPath): array
 {
     $id = isset($data['id']) && $data['id'] !== '' ? (int)$data['id'] : 0;
@@ -142,15 +185,44 @@ function saveContract(PDO $pdo, array $data, ?array $file, string $uploadDir, st
     $houseName = trim((string)($data['house_name'] ?? ''));
     $contractDate = trim((string)($data['contract_date'] ?? ''));
 
-    $existingFile = trim((string)($data['existing_scanned_contract'] ?? ''));
-    $existingStamp = trim((string)($data['existing_contract_stamp'] ?? ''));
-    $scannedContract = $existingFile;
+    $existingRow = null;
+
+    if ($id > 0) {
+        $existingRow = getExistingContractById($pdo, $id);
+    }
+
+    if (!$existingRow) {
+        $existingRow = getExistingContractByIdentity($pdo, $memberName, $houseName, $contractDate);
+        if ($existingRow) {
+            $id = (int)$existingRow['id'];
+        }
+    }
 
     /**
-     * Once a scanned contract exists, it cannot be replaced or deleted.
-     * A new upload is only accepted when there is no existing scanned copy yet.
+     * Hard lock:
+     * If a scanned contract already exists on the record, the contract cannot be edited,
+     * replaced, autosaved, or uploaded again from this page.
      */
-    if ($existingFile === '' && $file && isset($file['tmp_name']) && is_uploaded_file($file['tmp_name']) && (int)$file['error'] === UPLOAD_ERR_OK) {
+    if ($existingRow && trim((string)$existingRow['scanned_contract']) !== '') {
+        return [
+            'success' => false,
+            'message' => 'This contract has a scanned uploaded copy and is locked from editing. Only the uploaded copy can be viewed or stamped.',
+            'id' => (int)$existingRow['id'],
+            'locked' => true,
+        ];
+    }
+
+    $scannedContract = '';
+
+    if ($existingRow && !empty($existingRow['scanned_contract'])) {
+        $scannedContract = (string)$existingRow['scanned_contract'];
+    }
+
+    /**
+     * If a scanned contract is uploaded during this save, it becomes the permanent file
+     * and the record will be locked on all future loads/updates.
+     */
+    if ($file && isset($file['tmp_name']) && is_uploaded_file($file['tmp_name']) && (int)$file['error'] === UPLOAD_ERR_OK) {
         $allowed = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
         $ext = strtolower(pathinfo((string)$file['name'], PATHINFO_EXTENSION));
 
@@ -194,10 +266,10 @@ function saveContract(PDO $pdo, array $data, ?array $file, string $uploadDir, st
         'member_3_name' => trim((string)($data['member_3_name'] ?? '')),
         'member_4_name' => trim((string)($data['member_4_name'] ?? '')),
         'scanned_contract' => $scannedContract,
-        'contract_stamp' => $existingStamp,
+        'contract_stamp' => $existingRow ? (string)($existingRow['contract_stamp'] ?? '') : '',
     ];
 
-    if ($id > 0) {
+    if ($id > 0 && $existingRow) {
         $sql = "UPDATE oxford_member_financial_contracts SET
             member_name = :member_name,
             house_name = :house_name,
@@ -227,64 +299,13 @@ function saveContract(PDO $pdo, array $data, ?array $file, string $uploadDir, st
         $stmt = $pdo->prepare($sql);
         $payload['id'] = $id;
         $stmt->execute($payload);
-        return ['success' => true, 'message' => 'Sheet updated successfully.', 'id' => $id];
-    }
 
-    $checkStmt = $pdo->prepare("
-        SELECT id, scanned_contract, contract_stamp
-        FROM oxford_member_financial_contracts
-        WHERE member_name = :member_name
-          AND contract_date = :contract_date
-          AND house_name = :house_name
-        LIMIT 1
-    ");
-    $checkStmt->execute([
-        'member_name' => $payload['member_name'],
-        'contract_date' => $payload['contract_date'],
-        'house_name' => $payload['house_name'],
-    ]);
-    $existing = $checkStmt->fetch();
-
-    if ($existing) {
-        $id = (int)$existing['id'];
-
-        if (!empty($existing['scanned_contract'])) {
-            $payload['scanned_contract'] = (string)$existing['scanned_contract'];
-        }
-
-        if (!empty($existing['contract_stamp'])) {
-            $payload['contract_stamp'] = (string)$existing['contract_stamp'];
-        }
-
-        $sql = "UPDATE oxford_member_financial_contracts SET
-            contract_length = :contract_length,
-            total_amount_owed = :total_amount_owed,
-            term_1 = :term_1,
-            term_2 = :term_2,
-            term_3 = :term_3,
-            term_4 = :term_4,
-            acknowledgement_name = :acknowledgement_name,
-            signature_name = :signature_name,
-            signature_date = :signature_date,
-            president_name = :president_name,
-            treasurer_name = :treasurer_name,
-            coordinator_name = :coordinator_name,
-            member_1_name = :member_1_name,
-            member_2_name = :member_2_name,
-            secretary_name = :secretary_name,
-            comptroller_name = :comptroller_name,
-            hs_representative_name = :hs_representative_name,
-            member_3_name = :member_3_name,
-            member_4_name = :member_4_name,
-            scanned_contract = :scanned_contract,
-            contract_stamp = :contract_stamp
-            WHERE id = :id";
-        $stmt = $pdo->prepare($sql);
-        $updatePayload = $payload;
-        unset($updatePayload['member_name'], $updatePayload['contract_date'], $updatePayload['house_name']);
-        $updatePayload['id'] = $id;
-        $stmt->execute($updatePayload);
-        return ['success' => true, 'message' => 'Existing sheet found and updated.', 'id' => $id];
+        return [
+            'success' => true,
+            'message' => $scannedContract !== '' ? 'Sheet updated and scanned contract uploaded. This record is now locked from editing.' : 'Sheet updated successfully.',
+            'id' => $id,
+            'locked' => $scannedContract !== '',
+        ];
     }
 
     $sql = "INSERT INTO oxford_member_financial_contracts (
@@ -304,8 +325,14 @@ function saveContract(PDO $pdo, array $data, ?array $file, string $uploadDir, st
     )";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($payload);
+    $newId = (int)$pdo->lastInsertId();
 
-    return ['success' => true, 'message' => 'Sheet saved successfully.', 'id' => (int)$pdo->lastInsertId()];
+    return [
+        'success' => true,
+        'message' => $scannedContract !== '' ? 'Sheet saved and scanned contract uploaded. This record is now locked from editing.' : 'Sheet saved successfully.',
+        'id' => $newId,
+        'locked' => $scannedContract !== '',
+    ];
 }
 
 $message = '';
@@ -323,7 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_sheet'])) {
     $message = $result['message'];
     $messageType = $result['success'] ? 'success' : 'error';
 
-    if ($result['success'] && isset($result['id'])) {
+    if (isset($result['id']) && (int)$result['id'] > 0) {
         $_GET['load_id'] = (string)$result['id'];
     }
 }
@@ -379,6 +406,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['apply_stamp'])) {
                 'details' => ['stamp' => $stampValue, 'member_name' => (string)($row['member_name'] ?? '')],
             ]);
             oxford_log_activity($masterPdo, $currentHouseId, 'contracts.php', 'contract_stamp_applied', ['stamp' => $stampValue], (int)($oxfordUser['id'] ?? 0));
+
             $message = 'Stamp applied successfully.';
             $messageType = 'success';
             $_GET['load_id'] = (string)$stampLoadId;
@@ -443,7 +471,6 @@ $record = [
 ];
 
 $showUploadedCopy = false;
-$forceFormView = isset($_GET['view']) && $_GET['view'] === 'form';
 
 if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
     $stmt = $pdo->prepare("SELECT * FROM oxford_member_financial_contracts WHERE id = :id LIMIT 1");
@@ -468,13 +495,13 @@ if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
             $historyRecordOptions = $stmt->fetchAll();
         }
 
-        if (!$forceFormView && !empty($record['scanned_contract'])) {
+        if (!empty($record['scanned_contract'])) {
             $showUploadedCopy = true;
         }
 
         if ($message === '') {
             $message = $showUploadedCopy
-                ? 'Loaded saved record. Uploaded copy is shown because this history item has a scanned contract.'
+                ? 'Loaded saved record. This contract has a scanned uploaded copy, so only the uploaded copy is shown and the record is locked from editing.'
                 : 'Loaded saved sheet for editing.';
             $messageType = 'success';
         }
@@ -953,7 +980,7 @@ if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
                             <?= h($item['contract_date']) ?>
                             | House: <?= h($item['house_name']) ?>
                             | Updated: <?= h($item['updated_at']) ?>
-                            <?= !empty($item['scanned_contract']) ? ' | Scan' : '' ?>
+                            <?= !empty($item['scanned_contract']) ? ' | Scan Locked' : '' ?>
                             <?= !empty($item['contract_stamp']) ? ' | ' . h($item['contract_stamp']) : '' ?>
                         </option>
                     <?php endforeach; ?>
@@ -966,9 +993,9 @@ if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
         <h3>Instructions</h3>
         <div class="helper-box">
             Choose a member from the dropdown, then choose a saved record from the second dropdown.<br><br>
-            If that record has an uploaded scanned contract, the uploaded copy is shown instead of the editable form.<br><br>
-            Once a scanned copy has been uploaded, it cannot be replaced or deleted from this page.<br><br>
-            You can apply a red stamp of <strong>CONTRACT FULFILLED</strong> or <strong>VOIDED</strong> using the password section below.
+            If that record has an uploaded scanned contract, only the uploaded copy is shown.<br><br>
+            Once a scanned copy has been uploaded, that contract record is locked and cannot be edited, replaced, or deleted from this page.<br><br>
+            You can apply a red stamp of <strong>CONTRACT FULFILLED</strong> or <strong>VOIDED</strong> or <strong>DISMISSED</strong> or <strong>MOVED OUT</strong>using the password section below.
         </div>
 
         <?php if (!empty($record['scanned_contract'])): ?>
@@ -994,6 +1021,8 @@ if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
                     <option value="">-- Select Stamp --</option>
                     <option value="CONTRACT FULFILLED">CONTRACT FULFILLED</option>
                     <option value="VOIDED">VOIDED</option>
+                    <option value="DISMISSED">DISMISSED</option>
+                    <option value="MOVED OUT">MOVED OUT</option>
                 </select>
 
                 <label for="stamp_password">Password</label>
@@ -1025,12 +1054,12 @@ if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
                     <div class="viewer-meta">
                         <strong>Member:</strong> <?= h($record['member_name']) ?><br>
                         <strong>House:</strong> Oxford House - <?= h($record['house_name']) ?><br>
-                        <strong>Date:</strong> <?= h($record['contract_date']) ?>
+                        <strong>Date:</strong> <?= h($record['contract_date']) ?><br>
+                        <strong>Status:</strong> Locked from editing after scan upload
                     </div>
                 </div>
 
                 <div class="viewer-actions">
-                    <a class="btn btn-primary" style="width:auto; min-width:190px;" href="?load_id=<?= (int)$record['id'] ?>&view=form&history_member_name=<?= urlencode((string)$historySearch) ?>">Edit Form Instead</a>
                     <a class="btn btn-secondary" style="width:auto; min-width:190px;" href="<?= h($record['scanned_contract']) ?>" target="_blank">Open Uploaded Copy</a>
                     <button class="btn btn-secondary" style="width:auto; min-width:190px;" type="button" onclick="window.print()">Print Copy</button>
                 </div>
@@ -1059,8 +1088,6 @@ if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
         <?php else: ?>
             <form id="contractForm" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="id" id="id" value="<?= h($record['id']) ?>">
-                <input type="hidden" name="existing_scanned_contract" value="<?= h($record['scanned_contract']) ?>">
-                <input type="hidden" name="existing_contract_stamp" value="<?= h($record['contract_stamp']) ?>">
 
                 <div class="sheet">
                     <div class="logo">
@@ -1203,17 +1230,7 @@ if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
 
                     <div style="margin-top:34px;">
                         <label style="display:block; font-size:16px; margin-bottom:8px; font-weight:700;">Upload Scanned Version of Contract for Review</label>
-
-                        <?php if (empty($record['scanned_contract'])): ?>
-                            <input type="file" name="scanned_contract_file" accept=".pdf,.jpg,.jpeg,.png,.webp" style="font-size:15px;">
-                        <?php else: ?>
-                            <div class="helper-box">
-                                A scanned contract has already been uploaded for this record and cannot be replaced or deleted here.
-                                <div style="margin-top:10px;">
-                                    <a class="btn-link" href="<?= h($record['scanned_contract']) ?>" target="_blank">Open Existing Uploaded Copy</a>
-                                </div>
-                            </div>
-                        <?php endif; ?>
+                        <input type="file" name="scanned_contract_file" accept=".pdf,.jpg,.jpeg,.png,.webp" style="font-size:15px;">
                     </div>
 
                     <div style="margin-top:28px; display:flex; gap:12px; flex-wrap:wrap;">
@@ -1299,8 +1316,21 @@ if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
                         idField.value = result.id;
                     }
                 }
+
+                if (result.locked) {
+                    setStatus('Locked');
+                    window.location = '?load_id=' + encodeURIComponent(result.id || '') + '&history_member_name=' + encodeURIComponent((memberNameField ? memberNameField.value : ''));
+                    return;
+                }
+
                 setStatus('Saved');
             } else {
+                if (result.locked && result.id) {
+                    setStatus('Locked');
+                    window.location = '?load_id=' + encodeURIComponent(result.id) + '&history_member_name=' + encodeURIComponent((memberNameField ? memberNameField.value : ''));
+                    return;
+                }
+
                 setStatus('Error');
                 console.error(result.message || 'Autosave failed');
             }
