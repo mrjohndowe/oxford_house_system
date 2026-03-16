@@ -11,6 +11,7 @@ declare(strict_types=1);
    DATABASE CONFIG
 ========================= */
 require_once __DIR__ . '/../extras/master_config.php';
+
 $logoPath = '../images/oxford_house_logo.png';
 
 /* =========================
@@ -47,29 +48,33 @@ $pdo->exec("
 /* =========================
    HELPERS
 ========================= */
-function h(mixed $value): string {
+function h(mixed $value): string
+{
     return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
-function checked(array $source, string $name, string $value): string {
+function checked(array $source, string $name, string $value): string
+{
     return (($source[$name] ?? '') === $value) ? 'checked' : '';
 }
 
-function is_checked(array $source, string $name): string {
+function is_checked(array $source, string $name): string
+{
     return !empty($source[$name]) ? 'checked' : '';
 }
 
-function request_value(array $source, string $key, string $default = ''): string {
+function request_value(array $source, string $key, string $default = ''): string
+{
     return h($source[$key] ?? $default);
 }
 
-function save_form(PDO $pdo, array $payload): array {
+function save_form(PDO $pdo, array $payload): array
+{
     $meetingDate = trim((string)($payload['meeting_date'] ?? ''));
-
     if ($meetingDate === '') {
         return [
             'ok' => false,
-            'message' => 'Please enter a meeting date before saving.'
+            'message' => 'Please enter a meeting date before saving.',
         ];
     }
 
@@ -104,15 +109,14 @@ function save_form(PDO $pdo, array $payload): array {
     if ($json === false) {
         return [
             'ok' => false,
-            'message' => 'Unable to encode form data.'
+            'message' => 'Unable to encode form data.',
         ];
     }
 
     $stmt = $pdo->prepare("
         INSERT INTO chapter_meeting_minutes (meeting_date, form_data)
         VALUES (:meeting_date, :form_data)
-        ON DUPLICATE KEY UPDATE
-            form_data = VALUES(form_data)
+        ON DUPLICATE KEY UPDATE form_data = VALUES(form_data)
     ");
     $stmt->execute([
         ':meeting_date' => $meetingDate,
@@ -225,621 +229,565 @@ if ($selectedDate !== '') {
 $historyRows = $pdo->query("
     SELECT meeting_date
     FROM chapter_meeting_minutes
-    ORDER BY
-        STR_TO_DATE(meeting_date, '%m/%d/%Y') DESC,
-        updated_at DESC,
-        meeting_date DESC
+    ORDER BY STR_TO_DATE(meeting_date, '%m/%d/%Y') DESC, updated_at DESC, meeting_date DESC
 ")->fetchAll();
+
 ?>
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Oxford House Colorado Chapter 14 Meeting Minutes</title>
-<style>
-    :root {
-        --page-w: 8.5in;
-        --page-h: 11in;
-        --border: 2px solid #222;
-        --thin: 1px solid #222;
-        --text: #111;
-        --font-main: "Arial Narrow", Arial, Helvetica, sans-serif;
-        --ok: #1c6b2a;
-        --warn: #8a5a00;
-        --err: #9a1f1f;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-        margin: 0;
-        background: #d9d9d9;
-        color: var(--text);
-        font-family: var(--font-main);
-    }
-
-    .toolbar {
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        background: #f2f2f2;
-        border-bottom: 1px solid #bbb;
-        padding: 12px;
-        display: flex;
-        gap: 10px;
-        justify-content: center;
-        flex-wrap: wrap;
-        align-items: center;
-    }
-
-    .btn, .history-select {
-        border: 1px solid #111;
-        background: #fff;
-        color: #111;
-        padding: 10px 16px;
-        font: 700 14px var(--font-main);
-        text-transform: uppercase;
-        letter-spacing: .4px;
-    }
-
-    .btn { cursor: pointer; }
-
-    .history-wrap {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font: 700 14px var(--font-main);
-        text-transform: uppercase;
-    }
-
-    .history-select {
-        min-width: 220px;
-        cursor: pointer;
-    }
-
-    .status {
-        width: 100%;
-        text-align: center;
-        font: 700 14px var(--font-main);
-        text-transform: uppercase;
-    }
-
-    .status.ok { color: var(--ok); }
-    .status.warn { color: var(--warn); }
-    .status.err { color: var(--err); }
-
-    .wrapper {
-        padding: 18px 0 40px;
-    }
-
-    .page {
-        width: var(--page-w);
-        min-height: var(--page-h);
-        margin: 0 auto 18px;
-        background: #efefef;
-        padding: 8px 8px 10px;
-        box-shadow: 0 0 0 1px #c8c8c8;
-        position: relative;
-    }
-
-    .title {
-        text-align: center;
-        font-weight: 900;
-        font-size: 21px;
-        letter-spacing: .3px;
-        margin: 2px 0 10px;
-        text-transform: uppercase;
-    }
-
-    .topline {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        column-gap: 30px;
-        margin: 6px 6px 18px;
-    }
-
-    .label-line {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 800;
-        font-size: 16px;
-        text-transform: uppercase;
-    }
-
-    .line-input {
-        flex: 1;
-        border: none;
-        border-bottom: 2px solid #222;
-        background: transparent;
-        min-height: 24px;
-        font: 700 16px var(--font-main);
-        color: #111;
-        padding: 0 4px;
-        outline: none;
-        text-transform: uppercase;
-    }
-
-    .box {
-        border: var(--border);
-        margin-bottom: 18px;
-        background: rgba(255,255,255,.08);
-    }
-
-    .section-title {
-        font-size: 18px;
-        font-weight: 900;
-        text-transform: uppercase;
-        padding: 4px 8px;
-        border-bottom: var(--thin);
-        text-align: center;
-        letter-spacing: .2px;
-    }
-
-    .section-title.left { text-align: left; }
-
-    .section-title small {
-        font-size: 13px;
-        font-weight: 700;
-    }
-
-    .roll-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 24px;
-        padding: 12px 12px 8px;
-    }
-
-    table.grid {
-        width: 100%;
-        border-collapse: collapse;
-        table-layout: fixed;
-    }
-
-    table.grid th,
-    table.grid td {
-        border: var(--thin);
-        padding: 0;
-        height: 34px;
-        vertical-align: middle;
-        background: transparent;
-    }
-
-    table.grid th {
-        font-size: 15px;
-        font-weight: 900;
-        text-transform: uppercase;
-        text-align: center;
-        padding: 4px 6px;
-    }
-
-    table.grid .rowlabel {
-        width: 50%;
-        padding: 4px 6px;
-        font-size: 13px;
-        font-weight: 800;
-        text-transform: uppercase;
-    }
-
-    .cell-input {
-        width: 100%;
-        height: 100%;
-        border: none;
-        background: transparent;
-        font: 700 14px var(--font-main);
-        padding: 4px 6px;
-        outline: none;
-        text-transform: uppercase;
-    }
-
-    .plain-lines {
-        padding: 10px 12px 14px;
-    }
-
-    .plain-line {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 14px 0;
-        font-weight: 800;
-        font-size: 16px;
-        text-transform: uppercase;
-    }
-
-    .yn-row {
-        margin: 8px 4px 18px;
-        font-weight: 900;
-        font-size: 16px;
-        text-transform: uppercase;
-    }
-
-    .radio-group {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-    }
-
-    .radio-group label {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        cursor: pointer;
-    }
-
-    input[type="radio"] {
-        width: 16px;
-        height: 16px;
-        accent-color: #111;
-    }
-
-    .mmsp-check {
-        width: 16px;
-        height: 16px;
-        accent-color: #111;
-        margin: 0;
-    }
-
-    .minutes-box {
-        padding: 8px 8px 0;
-    }
-
-    .block-label {
-        font-size: 16px;
-        font-weight: 900;
-        text-transform: uppercase;
-        margin-bottom: 6px;
-    }
-
-    .single-line {
-        width: 100%;
-        border: none;
-        border-bottom: 2px solid #222;
-        background: transparent;
-        padding: 4px 6px;
-        outline: none;
-        font: 700 15px var(--font-main);
-        text-transform: uppercase;
-        min-height: 28px;
-    }
-
-    textarea {
-        width: 100%;
-        border: none;
-        background: transparent;
-        resize: none;
-        outline: none;
-        font: 700 15px/1.2 var(--font-main);
-        padding: 6px 8px;
-        text-transform: uppercase;
-        overflow: hidden;
-    }
-
-    .short-notes { min-height: 52px; }
-    .comment-area { min-height: 126px; }
-    .report-area-lg { min-height: 134px; }
-    .report-area-md { min-height: 108px; }
-    .report-area-sm { min-height: 52px; }
-    .business-old { min-height: 240px; }
-    .business-new { min-height: 355px; }
-
-    .accept-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 6px 8px 8px;
-        font-weight: 900;
-        text-transform: uppercase;
-        font-size: 16px;
-    }
-
-    .accept-row .lefttxt { flex: 1; }
-
-    .mmsp {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        white-space: nowrap;
-    }
-
-    .mmsp input[type="text"] {
-        width: 90px;
-        border: none;
-        border-bottom: 2px solid #222;
-        background: transparent;
-        font: 700 15px var(--font-main);
-        outline: none;
-        text-transform: uppercase;
-    }
-
-    .treasurer-wrap { padding: 0 0 4px; }
-
-    .account-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 50px;
-        padding: 0 12px;
-    }
-
-    .moneyline {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 14px 12px 8px;
-        font-size: 16px;
-        font-weight: 900;
-        text-transform: uppercase;
-    }
-
-    .moneyline .moneyfill,
-    .moneyline .blankfill {
-        border: none;
-        border-bottom: 2px solid #222;
-        background: transparent;
-        outline: none;
-        font: 700 15px var(--font-main);
-        text-transform: uppercase;
-        height: 24px;
-    }
-
-    .moneyline .moneyfill { width: 110px; }
-    .moneyline .blankfill { width: 70px; }
-
-    .comments-head {
-        padding: 8px 12px 2px;
-        font-size: 16px;
-        font-weight: 900;
-        text-transform: uppercase;
-    }
-
-    .comments-head small {
-        font-size: 12px;
-        font-weight: 700;
-    }
-
-    .report-box {
-        border: var(--border);
-        margin-bottom: 18px;
-        background: rgba(255,255,255,.08);
-    }
-
-    .report-box .section-title { padding: 3px 8px; }
-
-    .report-content { min-height: 120px; }
-
-    .footer-lines {
-        margin-top: 16px;
-        padding: 0 2px;
-    }
-
-    .footer-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 8px;
-        font-size: 16px;
-        font-weight: 900;
-        text-transform: uppercase;
-    }
-
-    .footer-row .fill {
-        flex: 0 0 110px;
-        border: none;
-        border-bottom: 2px solid #222;
-        background: transparent;
-        outline: none;
-        font: 700 15px var(--font-main);
-        text-transform: uppercase;
-    }
-
-    .sigline {
-        flex: 1;
-        border: none;
-        border-bottom: 2px solid #222;
-        background: transparent;
-        outline: none;
-        font: 700 15px var(--font-main);
-        text-transform: uppercase;
-    }
-
-    .attach-note {
-        text-align: center;
-        font-size: 16px;
-        font-weight: 900;
-        text-transform: uppercase;
-        margin-top: 2px;
-    }
-
-    /* Revised Comptroller */
-    .comptroller-sheet {
-        border: 1px solid #c9c9c9;
-        /* background: #fff; */
-        padding: 8px 8px 6px;
-        margin-bottom: 18px;
-    }
-
-    .comptroller-meta {
-        width: 255px;
-        display: grid;
-        grid-template-columns: 110px 145px;
-        border: 1px solid #d3d3d3;
-        border-bottom: none;
-        margin-bottom: 10px;
-    }
-
-    .comptroller-meta .meta-label,
-    .comptroller-meta .meta-field {
-        min-height: 28px;
-        border-bottom: 1px solid #d3d3d3;
-        border-right: 1px solid #d3d3d3;
-        display: flex;
-        align-items: center;
-        padding: 0 8px;
-        font-size: 13px;
-        font-weight: 700;
-        /* background: #fff; */
-    }
-
-    .comptroller-meta .meta-field:nth-child(2),
-    .comptroller-meta .meta-field:nth-child(4) {
-        border-right: none;
-    }
-
-    .meta-input {
-        width: 100%;
-        border: none;
-        background: transparent;
-        outline: none;
-        font: 700 14px var(--font-main);
-        text-transform: uppercase;
-    }
-
-    .comptroller-head {
-        display: grid;
-        grid-template-columns: 82px 1fr auto;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 8px;
-    }
-
-    .comptroller-logo {
-        width: 74px;
-        height: auto;
-        display: block;
-    }
-
-    .comptroller-heading {
-        font-size: 20px;
-        font-weight: 700;
-        line-height: 1.1;
-    }
-
-    .comptroller-rate {
-        font-size: 17px;
-        font-weight: 700;
-        white-space: nowrap;
-    }
-
-    .comptroller-rate input {
-        width: 62px;
-        border: none;
-        border-bottom: 1px solid #111;
-        background: transparent;
-        outline: none;
-        font: 700 17px var(--font-main);
-        text-align: center;
-    }
-
-    .comptroller-ledger {
-        width: 120%;
-        border-collapse: collapse;
-        table-layout: fixed;
-    }
-
-    .comptroller-ledger th,
-    .comptroller-ledger td {
-        border: 1px solid #d7d7d7;
-        /* background: #fff; */
-        padding: 0;
-    }
-
-    .comptroller-ledger th {
-        font-size: 11px;
-        font-weight: 700;
-        text-align: center;
-        padding: 6px 4px;
-        line-height: 1.15;
-    }
-
-    .comptroller-ledger td {
-        height: 33px;
-    }
-
-    .comp-input {
-        width: 100%;
-        height: 100%;
-        border: none;
-        background: transparent;
-        outline: none;
-        font: 700 14px var(--font-main);
-        padding: 4px 5px;
-        text-transform: uppercase;
-    }
-
-    .comp-center {
-        text-align: center;
-    }
-
-    .comp-money {
-        text-align: center;
-    }
-
-    .comp-check-cell {
-        text-align: center;
-        vertical-align: middle;
-    }
-
-    .comp-check {
-        width: 16px;
-        height: 16px;
-        accent-color: #111;
-        margin: 0;
-    }
-
-    .comptroller-summary-row {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 10px;
-        padding: 8px 2px 4px;
-    }
-
-    .comptroller-summary-item {
-        font-size: 13px;
-        font-weight: 700;
-        text-transform: uppercase;
-        display: flex;
-        align-items: center;
-        /* gap: 6px; */
-    }
-
-    .comptroller-summary-item input {
-        flex: 1;
-        border: none;
-        border-bottom: 1px solid #111;
-        background: transparent;
-        outline: none;
-        font: 700 14px var(--font-main);
-        text-align: right;
-    }
-
-    .comptroller-comments-title {
-        padding: 4px 2px 2px;
-        font-size: 14px;
-        font-weight: 700;
-        text-transform: uppercase;
-    }
-
-    .comptroller-comments-box {
-        min-height: 88px;
-        border-top: 1px solid #d7d7d7;
-    }
-
-    @media print {
-        body { background: #fff; }
-        .toolbar { display: none; }
-        .wrapper { padding: 0; }
-        .page {
-            margin: 0;
-            box-shadow: none;
-            page-break-after: always;
-            break-after: page;
-            background: #fff;
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Oxford House Colorado Chapter 14 Meeting Minutes</title>
+    <style>
+        :root {
+            --page-w: 8.5in;
+            --page-h: 11in;
+            --border: 2px solid #222;
+            --thin: 1px solid #222;
+            --text: #111;
+            --font-main: "Arial Narrow", Arial, Helvetica, sans-serif;
+            --ok: #1c6b2a;
+            --warn: #8a5a00;
+            --err: #9a1f1f;
+            --comp-green: #157a2c;
+            --comp-red: #b11717;
         }
-        .page:last-child { page-break-after: auto; }
-    }
-</style>
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: #d9d9d9;
+            color: var(--text);
+            font-family: var(--font-main);
+        }
+
+        .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #f2f2f2;
+            border-bottom: 1px solid #bbb;
+            padding: 12px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .btn,
+        .history-select {
+            border: 1px solid #111;
+            background: #fff;
+            color: #111;
+            padding: 10px 16px;
+            font: 700 14px var(--font-main);
+            text-transform: uppercase;
+            letter-spacing: .4px;
+        }
+
+        .btn { cursor: pointer; }
+
+        .history-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font: 700 14px var(--font-main);
+            text-transform: uppercase;
+        }
+
+        .history-select {
+            min-width: 220px;
+            cursor: pointer;
+        }
+
+        .status {
+            width: 100%;
+            text-align: center;
+            font: 700 14px var(--font-main);
+            text-transform: uppercase;
+        }
+
+        .status.ok { color: var(--ok); }
+        .status.warn { color: var(--warn); }
+        .status.err { color: var(--err); }
+
+        .wrapper { padding: 18px 0 40px; }
+
+        .page {
+            width: var(--page-w);
+            min-height: var(--page-h);
+            margin: 0 auto 18px;
+            background: #efefef;
+            padding: 8px 8px 10px;
+            box-shadow: 0 0 0 1px #c8c8c8;
+            position: relative;
+        }
+
+        .title {
+            text-align: center;
+            font-weight: 900;
+            font-size: 21px;
+            letter-spacing: .3px;
+            margin: 2px 0 10px;
+            text-transform: uppercase;
+        }
+
+        .topline {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            column-gap: 30px;
+            margin: 6px 6px 18px;
+        }
+
+        .label-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 800;
+            font-size: 16px;
+            text-transform: uppercase;
+        }
+
+        .line-input {
+            flex: 1;
+            border: none;
+            border-bottom: 2px solid #222;
+            background: transparent;
+            min-height: 24px;
+            font: 700 16px var(--font-main);
+            color: #111;
+            padding: 0 4px;
+            outline: none;
+            text-transform: uppercase;
+        }
+
+        .box {
+            border: var(--border);
+            margin-bottom: 18px;
+            background: rgba(255,255,255,.08);
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 900;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            border-bottom: var(--thin);
+            text-align: center;
+            letter-spacing: .2px;
+        }
+
+        .section-title.left { text-align: left; }
+
+        .section-title small {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .roll-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            padding: 12px 12px 8px;
+        }
+
+        table.grid {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        table.grid th,
+        table.grid td {
+            border: var(--thin);
+            padding: 0;
+            height: 34px;
+            vertical-align: middle;
+            background: transparent;
+        }
+
+        table.grid th {
+            font-size: 15px;
+            font-weight: 900;
+            text-transform: uppercase;
+            text-align: center;
+            padding: 4px 6px;
+        }
+
+        table.grid .rowlabel {
+            width: 50%;
+            padding: 4px 6px;
+            font-size: 13px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .cell-input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            font: 700 14px var(--font-main);
+            padding: 4px 6px;
+            outline: none;
+            text-transform: uppercase;
+        }
+
+        .plain-lines { padding: 10px 12px 14px; }
+
+        .plain-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 14px 0;
+            font-weight: 800;
+            font-size: 16px;
+            text-transform: uppercase;
+        }
+
+        .yn-row {
+            margin: 8px 4px 18px;
+            font-weight: 900;
+            font-size: 16px;
+            text-transform: uppercase;
+        }
+
+        .radio-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .radio-group label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        input[type="radio"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #111;
+        }
+
+        .mmsp-check {
+            width: 16px;
+            height: 16px;
+            accent-color: #111;
+            margin: 0;
+        }
+
+        .minutes-box { padding: 8px 8px 0; }
+
+        .block-label {
+            font-size: 16px;
+            font-weight: 900;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .single-line {
+            width: 100%;
+            border: none;
+            border-bottom: 2px solid #222;
+            background: transparent;
+            padding: 4px 6px;
+            outline: none;
+            font: 700 15px var(--font-main);
+            text-transform: uppercase;
+            min-height: 28px;
+        }
+
+        textarea {
+            width: 100%;
+            border: none;
+            background: transparent;
+            resize: none;
+            outline: none;
+            font: 700 15px/1.2 var(--font-main);
+            padding: 6px 8px;
+            text-transform: uppercase;
+            overflow: hidden;
+        }
+
+        .short-notes { min-height: 52px; }
+        .comment-area { min-height: 126px; }
+        .report-area-lg { min-height: 134px; }
+        .report-area-md { min-height: 108px; }
+        .report-area-sm { min-height: 52px; }
+        .business-old { min-height: 240px; }
+        .business-new { min-height: 355px; }
+
+        .accept-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 6px 8px 8px;
+            font-weight: 900;
+            text-transform: uppercase;
+            font-size: 16px;
+        }
+
+        .accept-row .lefttxt { flex: 1; }
+
+        .mmsp {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .mmsp input[type="text"] {
+            width: 90px;
+            border: none;
+            border-bottom: 2px solid #222;
+            background: transparent;
+            font: 700 15px var(--font-main);
+            outline: none;
+            text-transform: uppercase;
+        }
+
+        .treasurer-wrap { padding: 0 0 4px; }
+
+        .account-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 50px;
+            padding: 0 12px;
+        }
+
+        .moneyline {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 14px 12px 8px;
+            font-size: 16px;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .moneyline .moneyfill,
+        .moneyline .blankfill {
+            border: none;
+            border-bottom: 2px solid #222;
+            background: transparent;
+            outline: none;
+            font: 700 15px var(--font-main);
+            text-transform: uppercase;
+            height: 24px;
+        }
+
+        .moneyline .moneyfill { width: 110px; }
+        .moneyline .blankfill { width: 70px; }
+
+        .comments-head {
+            padding: 8px 12px 2px;
+            font-size: 16px;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .comments-head small {
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .report-box {
+            border: var(--border);
+            margin-bottom: 18px;
+            background: rgba(255,255,255,.08);
+        }
+
+        .report-box .section-title { padding: 3px 8px; }
+        .report-content { min-height: 120px; }
+
+        .footer-lines {
+            margin-top: 16px;
+            padding: 0 2px;
+        }
+
+        .footer-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+            font-size: 16px;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .footer-row .fill {
+            flex: 0 0 110px;
+            border: none;
+            border-bottom: 2px solid #222;
+            background: transparent;
+            outline: none;
+            font: 700 15px var(--font-main);
+            text-transform: uppercase;
+        }
+
+        .sigline {
+            flex: 1;
+            border: none;
+            border-bottom: 2px solid #222;
+            background: transparent;
+            outline: none;
+            font: 700 15px var(--font-main);
+            text-transform: uppercase;
+        }
+
+        .attach-note {
+            text-align: center;
+            font-size: 16px;
+            font-weight: 900;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .comptroller-sheet {
+            border: 1px solid #c9c9c9;
+            padding: 8px 8px 6px;
+            margin-bottom: 18px;
+        }
+
+        .comptroller-head {
+            display: grid;
+            grid-template-columns: 82px 1fr auto;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .comptroller-heading {
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        .comptroller-rate {
+            font-size: 17px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .comptroller-rate input {
+            width: 62px;
+            border: none;
+            border-bottom: 1px solid #111;
+            background: transparent;
+            outline: none;
+            font: 700 17px var(--font-main);
+            text-align: center;
+        }
+
+        .comptroller-ledger {
+            width: 120%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .comptroller-ledger th,
+        .comptroller-ledger td {
+            border: 1px solid #d7d7d7;
+            padding: 0;
+        }
+
+        .comptroller-ledger th {
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+            padding: 6px 4px;
+            line-height: 1.15;
+        }
+
+        .comptroller-ledger td { height: 33px; }
+
+        .comp-input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            outline: none;
+            font: 700 14px var(--font-main);
+            padding: 4px 5px;
+            text-transform: uppercase;
+        }
+
+        .comp-center { text-align: center; }
+        .comp-money { text-align: center; }
+
+        .comp-negative {
+            color: var(--comp-green) !important;
+            font-weight: 900;
+        }
+
+        .comp-positive {
+            color: var(--comp-red) !important;
+            font-weight: 900;
+        }
+
+        .comp-zero {
+            color: inherit !important;
+            font-weight: 700;
+        }
+
+        .comptroller-summary-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            padding: 8px 2px 4px;
+        }
+
+        .comptroller-summary-item {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+        }
+
+        .comptroller-summary-item input {
+            flex: 1;
+            border: none;
+            border-bottom: 1px solid #111;
+            background: transparent;
+            outline: none;
+            font: 700 14px var(--font-main);
+            text-align: right;
+        }
+
+        .comptroller-comments-title {
+            padding: 4px 2px 2px;
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .comptroller-comments-box {
+            min-height: 88px;
+            border-top: 1px solid #d7d7d7;
+        }
+
+        @media print {
+            body { background: #fff; }
+            .toolbar { display: none; }
+            .wrapper { padding: 0; }
+            .page {
+                margin: 0;
+                box-shadow: none;
+                page-break-after: always;
+                break-after: page;
+                background: #fff;
+            }
+            .page:last-child { page-break-after: auto; }
+        }
+    </style>
 </head>
 <body>
 <form method="post" id="minutesForm" autocomplete="off">
@@ -872,37 +820,50 @@ $historyRows = $pdo->query("
             <div class="title">Oxford House Colorado Chapter 14 Meeting Minutes</div>
 
             <div class="topline">
-                <div class="label-line">Date: <input class="line-input" name="meeting_date" id="meeting_date" value="<?= request_value($formData, 'meeting_date') ?>"></div>
-                <div class="label-line">Start Time: <input class="line-input" name="start_time" value="<?= request_value($formData, 'start_time') ?>"></div>
+                <div class="label-line">
+                    Date:
+                    <input class="line-input" name="meeting_date" id="meeting_date" value="<?= request_value($formData, 'meeting_date') ?>">
+                </div>
+                <div class="label-line">
+                    Start Time:
+                    <input class="line-input" name="start_time" value="<?= request_value($formData, 'start_time') ?>">
+                </div>
             </div>
 
             <div class="box">
                 <div class="section-title left">Roll Call: <small>(By Secretary)</small></div>
+
                 <div class="roll-grid">
                     <table class="grid">
                         <tr><th colspan="2">Chapter Officers</th></tr>
                         <?php foreach ($officerRows as $i => $row): ?>
-                        <tr>
-                            <td class="rowlabel"><?= h($row) ?></td>
-                            <td><input class="cell-input" name="officer_<?= $i ?>" value="<?= request_value($formData, 'officer_' . $i) ?>"></td>
-                        </tr>
+                            <tr>
+                                <td class="rowlabel"><?= h($row) ?></td>
+                                <td><input class="cell-input" name="officer_<?= $i ?>" value="<?= request_value($formData, 'officer_' . $i) ?>"></td>
+                            </tr>
                         <?php endforeach; ?>
                     </table>
 
                     <table class="grid">
                         <tr><th colspan="2">Houses</th></tr>
                         <?php for ($i = 0; $i < 8; $i++): ?>
-                        <tr>
-                            <td><input class="cell-input" name="house_<?= $i ?>" value="<?= request_value($formData, 'house_' . $i) ?>"></td>
-                            <td><input class="cell-input" name="house_status_<?= $i ?>" value="<?= request_value($formData, 'house_status_' . $i) ?>"></td>
-                        </tr>
+                            <tr>
+                                <td><input class="cell-input" name="house_<?= $i ?>" value="<?= request_value($formData, 'house_' . $i) ?>"></td>
+                                <td><input class="cell-input" name="house_status_<?= $i ?>" value="<?= request_value($formData, 'house_status_' . $i) ?>"></td>
+                            </tr>
                         <?php endfor; ?>
                     </table>
                 </div>
 
                 <div class="plain-lines">
-                    <div class="plain-line">Absent: <input class="line-input" name="absent" value="<?= request_value($formData, 'absent') ?>"></div>
-                    <div class="plain-line">Guests: <input class="line-input" name="guests" value="<?= request_value($formData, 'guests') ?>"></div>
+                    <div class="plain-line">
+                        Absent:
+                        <input class="line-input" name="absent" value="<?= request_value($formData, 'absent') ?>">
+                    </div>
+                    <div class="plain-line">
+                        Guests:
+                        <input class="line-input" name="guests" value="<?= request_value($formData, 'guests') ?>">
+                    </div>
                 </div>
             </div>
 
@@ -916,11 +877,13 @@ $historyRows = $pdo->query("
 
             <div class="box">
                 <div class="section-title left">Reading of Previous Minutes: <small>(By Secretary)</small></div>
+
                 <div class="minutes-box">
                     <div class="block-label">Corrections:</div>
                     <textarea class="short-notes" name="corrections" oninput="autoGrow(this)"><?= request_value($formData, 'corrections') ?></textarea>
                     <input class="single-line" name="minutes_line" value="<?= request_value($formData, 'minutes_line') ?>">
                 </div>
+
                 <div class="accept-row">
                     <div class="lefttxt">Accept Minutes as Read or Corrected:</div>
                     <div class="mmsp">
@@ -933,6 +896,7 @@ $historyRows = $pdo->query("
 
             <div class="box treasurer-wrap">
                 <div class="section-title">Treasurer's Report</div>
+
                 <div class="account-grid">
                     <table class="grid">
                         <tr><th colspan="2">Checking Account</th></tr>
@@ -976,9 +940,10 @@ $historyRows = $pdo->query("
                 </div>
 
                 <div class="moneyline">
-                    Total Money Collected to Deposit:
-                    $ <input class="moneyfill" name="money_collected" value="<?= request_value($formData, 'money_collected') ?>">
-                    . <input class="blankfill" name="money_collected_suffix" value="<?= request_value($formData, 'money_collected_suffix') ?>">
+                    Total Money Collected to Deposit: $
+                    <input class="moneyfill" name="money_collected" value="<?= request_value($formData, 'money_collected') ?>">
+                    .
+                    <input class="blankfill" name="money_collected_suffix" value="<?= request_value($formData, 'money_collected_suffix') ?>">
                 </div>
 
                 <div class="comments-head">Comments : <small>(Expenditures with check number and "MM/S/P")</small></div>
@@ -1005,62 +970,53 @@ $historyRows = $pdo->query("
                 'Re-Entry Chair Report' => 'report-area-sm',
                 'Fundraising Chair Report' => 'report-area-sm',
             ];
-
-            foreach ($reportSectionsPage2 as $title => $name):
             ?>
-            <div class="report-box">
-                <div class="section-title"><?= h($title) ?></div>
-                <div class="report-content">
-                    <textarea class="<?= h($heights[$title]) ?>" name="<?= h($name) ?>" oninput="autoGrow(this)"><?= request_value($formData, $name) ?></textarea>
-                </div>
-                <div class="accept-row">
-                    <div class="lefttxt">Accept Report</div>
-                    <div class="mmsp">
-                        <label><input class="mmsp-check" type="checkbox" name="<?= h($name) ?>_accept_checked" value="1" <?= is_checked($formData, $name . '_accept_checked') ?>></label>
-                        MM/S/P
-                        <input type="text" name="<?= h($name) ?>_accept" value="<?= request_value($formData, $name . '_accept') ?>">
-                    </div>
-                </div>
-            </div>
 
-            <?php if ($name === 'outreach_report'): ?>
-                <div class="comptroller-sheet">
-                    <div class="section-title">Comptroller's Report</div>
-                    <!-- <div class="comptroller-meta">
-                        <div class="meta-label">Chapter</div>
-                        <div class="meta-field">
-                            <input class="meta-input" name="comptroller_chapter" value="<?= request_value($formData, 'comptroller_chapter', '14') ?>">
-                        </div>
-                        <div class="meta-label">Month / Year</div>
-                        <div class="meta-field">
-                            <input class="meta-input" name="comptroller_month_year" value="<?= request_value($formData, 'comptroller_month_year') ?>">
-                        </div>
-                    </div> -->
+            <?php foreach ($reportSectionsPage2 as $title => $name): ?>
+                <div class="report-box">
+                    <div class="section-title"><?= h($title) ?></div>
 
-                    <div class="comptroller-head">
-                        <!-- <img src="<?= h($logoPath) ?>" alt="Oxford House Logo" class="comptroller-logo"> -->
-                        <div class="comptroller-heading">
-                            <!-- Colorado Chapter <?= request_value($formData, 'comptroller_chapter', '14') ?> Comptroller Report -->
-                        </div>
-                        <div class="comptroller-rate">
-                            Base Dues $<input type="text" id="comptroller_rate" name="comptroller_rate" value="<?= request_value($formData, 'comptroller_rate', '35') ?>">
-                        </div>
+                    <div class="report-content">
+                        <textarea class="<?= h($heights[$title]) ?>" name="<?= h($name) ?>" oninput="autoGrow(this)"><?= request_value($formData, $name) ?></textarea>
                     </div>
 
-                    <table class="comptroller-ledger">
-                        <colgroup>
-                            <col style="width:16%">
-                            <col style="width:7%">
-                            <col style="width:10%">
-                            <col style="width:10%">
-                            <col style="width:10%">
-                            <col style="width:11%">
-                            <col style="width:10%">
-                            <col style="width:10%">
-                            <col style="width:8%">
-                            <col style="width:8%">
-                        </colgroup>
-                        <thead>
+                    <div class="accept-row">
+                        <div class="lefttxt">Accept Report</div>
+                        <div class="mmsp">
+                            <label><input class="mmsp-check" type="checkbox" name="<?= h($name) ?>_accept_checked" value="1" <?= is_checked($formData, $name . '_accept_checked') ?>></label>
+                            MM/S/P
+                            <input type="text" name="<?= h($name) ?>_accept" value="<?= request_value($formData, $name . '_accept') ?>">
+                        </div>
+                    </div>
+                </div>
+
+                <?php if ($name === 'outreach_report'): ?>
+                    <div class="comptroller-sheet">
+                        <div class="section-title">Comptroller's Report</div>
+
+                        <div class="comptroller-head">
+                            <div class="comptroller-heading"></div>
+                            <div></div>
+                            <div class="comptroller-rate">
+                                Base Dues $
+                                <input type="text" id="comptroller_rate" name="comptroller_rate" value="<?= request_value($formData, 'comptroller_rate', '35') ?>">
+                            </div>
+                        </div>
+
+                        <table class="comptroller-ledger">
+                            <colgroup>
+                                <col style="width:16%">
+                                <col style="width:7%">
+                                <col style="width:10%">
+                                <col style="width:10%">
+                                <col style="width:10%">
+                                <col style="width:11%">
+                                <col style="width:10%">
+                                <col style="width:10%">
+                                <col style="width:8%">
+                                <col style="width:8%">
+                            </colgroup>
+                            <thead>
                             <tr>
                                 <th>House</th>
                                 <th>Beds</th>
@@ -1070,11 +1026,9 @@ $historyRows = $pdo->query("
                                 <th>Total Owed</th>
                                 <th>Paid</th>
                                 <th>End Bal.</th>
-                                <!-- <th>Warn.</th>
-                                <th>Contract</th> -->
                             </tr>
-                        </thead>
-                        <tbody>
+                            </thead>
+                            <tbody>
                             <?php for ($i = 0; $i < 10; $i++): ?>
                                 <tr>
                                     <td>
@@ -1101,50 +1055,43 @@ $historyRows = $pdo->query("
                                     <td>
                                         <input class="comp-input comp-money" id="comp_end_bal_<?= $i ?>" name="comp_end_bal_<?= $i ?>" value="<?= request_value($formData, 'comp_end_bal_' . $i) ?>" readonly>
                                     </td>
-                                    <!-- <td class="comp-check-cell">
-                                        <input type="checkbox" class="comp-check" name="comp_warning_<?= $i ?>" value="1" <?= is_checked($formData, 'comp_warning_' . $i) ?>>
-                                    </td>
-                                    <td class="comp-check-cell">
-                                        <input type="checkbox" class="comp-check" name="comp_contract_<?= $i ?>" value="1" <?= is_checked($formData, 'comp_contract_' . $i) ?>>
-                                    </td> -->
                                 </tr>
                             <?php endfor; ?>
-                        </tbody>
-                    </table>
+                            </tbody>
+                        </table>
 
-                    <div class="comptroller-summary-row">
-                        <div class="comptroller-summary-item">
-                            Total Current $
-                            <input type="text" id="comp_total_current" name="comp_total_current" value="<?= request_value($formData, 'comp_total_current') ?>" readonly>
+                        <div class="comptroller-summary-row">
+                            <div class="comptroller-summary-item">
+                                Total Current $
+                                <input type="text" id="comp_total_current" name="comp_total_current" value="<?= request_value($formData, 'comp_total_current') ?>" readonly>
+                            </div>
+                            <div class="comptroller-summary-item">
+                                Total Owed $
+                                <input type="text" id="comp_total_owed" name="comp_total_owed" value="<?= request_value($formData, 'comp_total_owed') ?>" readonly>
+                            </div>
+                            <div class="comptroller-summary-item">
+                                Total Paid $
+                                <input type="text" id="comp_total_paid" name="comp_total_paid" value="<?= request_value($formData, 'comp_total_paid') ?>" readonly>
+                            </div>
+                            <div class="comptroller-summary-item">
+                                Ending Balance $
+                                <input type="text" id="comp_total_end" name="comp_total_end" value="<?= request_value($formData, 'comp_total_end') ?>" readonly>
+                            </div>
                         </div>
-                        <div class="comptroller-summary-item">
-                            Total Owed $
-                            <input type="text" id="comp_total_owed" name="comp_total_owed" value="<?= request_value($formData, 'comp_total_owed') ?>" readonly>
-                        </div>
-                        <div class="comptroller-summary-item">
-                            Total Paid $
-                            <input type="text" id="comp_total_paid" name="comp_total_paid" value="<?= request_value($formData, 'comp_total_paid') ?>" readonly>
-                        </div>
-                        <div class="comptroller-summary-item">
-                            Ending Balance $
-                            <input type="text" id="comp_total_end" name="comp_total_end" value="<?= request_value($formData, 'comp_total_end') ?>" readonly>
+
+                        <div class="comptroller-comments-title">Comments / Actions</div>
+                        <textarea class="comptroller-comments-box" name="comptroller_comments" oninput="autoGrow(this)"><?= request_value($formData, 'comptroller_comments') ?></textarea>
+
+                        <div class="accept-row">
+                            <div class="lefttxt">Accept Comptroller Report</div>
+                            <div class="mmsp">
+                                <label><input class="mmsp-check" type="checkbox" name="comptroller_accept_checked" value="1" <?= is_checked($formData, 'comptroller_accept_checked') ?>></label>
+                                MM/S/P
+                                <input type="text" name="comptroller_accept" value="<?= request_value($formData, 'comptroller_accept') ?>">
+                            </div>
                         </div>
                     </div>
-
-                    <div class="comptroller-comments-title">Comments / Actions</div>
-                    <textarea class="comptroller-comments-box" name="comptroller_comments" oninput="autoGrow(this)"><?= request_value($formData, 'comptroller_comments') ?></textarea>
-
-                    <div class="accept-row">
-                        <div class="lefttxt">Accept Comptroller Report</div>
-                        <div class="mmsp">
-                            <label><input class="mmsp-check" type="checkbox" name="comptroller_accept_checked" value="1" <?= is_checked($formData, 'comptroller_accept_checked') ?>></label>
-                            MM/S/P
-                            <input type="text" name="comptroller_accept" value="<?= request_value($formData, 'comptroller_accept') ?>">
-                        </div>
-                    </div>
-                </div>
-            <?php endif; ?>
-
+                <?php endif; ?>
             <?php endforeach; ?>
         </section>
 
@@ -1203,14 +1150,17 @@ $historyRows = $pdo->query("
                         <input class="fill" type="text" name="adjourn_meeting" value="<?= request_value($formData, 'adjourn_meeting') ?>">
                     </span>
                 </div>
+
                 <div class="footer-row">
                     <span>Adjourn Time</span>
                     <input class="fill" name="adjourn_time" value="<?= request_value($formData, 'adjourn_time') ?>">
                 </div>
+
                 <div class="footer-row">
                     <span>Secretary Signature:</span>
                     <input class="sigline" name="secretary_signature" value="<?= request_value($formData, 'secretary_signature') ?>">
                 </div>
+
                 <div class="attach-note">**Attach House Summary Reports**</div>
             </div>
         </section>
@@ -1245,12 +1195,42 @@ function parseMoney(value) {
 }
 
 function formatMoney(value) {
-    return Number(value).toFixed(2);
+    return Number(value || 0).toFixed(2);
 }
 
 function formatCompMoney(value) {
     const num = Number(value || 0);
     return num === 0 ? '0' : num.toFixed(2).replace(/\.00$/, '');
+}
+
+function formatEndBalanceDisplay(value) {
+    const num = Number(value || 0);
+
+    if (num < 0) {
+        return '[' + formatCompMoney(Math.abs(num)) + ']';
+    }
+
+    if (num > 0) {
+        return '-' + formatCompMoney(num);
+    }
+
+    return '0';
+}
+
+function applyBalanceColor(el, value) {
+    if (!el) return;
+
+    el.classList.remove('comp-negative', 'comp-positive', 'comp-zero');
+
+    const num = Number(value || 0);
+
+    if (num < 0) {
+        el.classList.add('comp-negative');
+    } else if (num > 0) {
+        el.classList.add('comp-positive');
+    } else {
+        el.classList.add('comp-zero');
+    }
 }
 
 function calculateBalances() {
@@ -1291,7 +1271,11 @@ function calculateComptrollerSection() {
 
         if (currentEl) currentEl.value = formatCompMoney(current);
         if (totalEl) totalEl.value = formatCompMoney(owed);
-        if (endEl) endEl.value = formatCompMoney(endBal);
+
+        if (endEl) {
+            endEl.value = formatEndBalanceDisplay(endBal);
+            applyBalanceColor(endEl, endBal);
+        }
 
         totalCurrent += current;
         totalOwed += owed;
@@ -1307,7 +1291,11 @@ function calculateComptrollerSection() {
     if (totalCurrentEl) totalCurrentEl.value = formatCompMoney(totalCurrent);
     if (totalOwedEl) totalOwedEl.value = formatCompMoney(totalOwed);
     if (totalPaidEl) totalPaidEl.value = formatCompMoney(totalPaid);
-    if (totalEndEl) totalEndEl.value = formatCompMoney(totalEnd);
+
+    if (totalEndEl) {
+        totalEndEl.value = formatEndBalanceDisplay(totalEnd);
+        applyBalanceColor(totalEndEl, totalEnd);
+    }
 }
 
 function serializeForm() {
@@ -1324,7 +1312,6 @@ function formSnapshot(fd) {
 
 async function doAutoSave() {
     const meetingDate = meetingDateInput.value.trim();
-
     if (!meetingDate) {
         setStatus('Enter meeting date to enable auto-save.', 'warn');
         return;
@@ -1349,9 +1336,7 @@ async function doAutoSave() {
         const response = await fetch(window.location.href, {
             method: 'POST',
             body: fd,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
 
         const result = await response.json();
@@ -1451,6 +1436,7 @@ document.querySelectorAll('#minutesForm input, #minutesForm textarea, #minutesFo
     if (el.type === 'button' || el.type === 'submit' || el.type === 'reset' || el.type === 'hidden') return;
 
     const evt = (el.tagName === 'SELECT' || el.type === 'radio' || el.type === 'checkbox') ? 'change' : 'input';
+
     el.addEventListener(evt, () => {
         if (el.tagName === 'TEXTAREA') autoGrow(el);
         queueAutoSave();
