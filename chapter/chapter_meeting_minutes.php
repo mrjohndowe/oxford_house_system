@@ -4,6 +4,7 @@
  * Fillable + MySQL save/load by meeting date
  * Manual save + auto-save + update existing record
  * Includes revised Comptroller Report with automatic math
+ * Tighter print layout to reduce total printed pages without cutting content off
  */
 declare(strict_types=1);
 
@@ -243,6 +244,7 @@ $historyRows = $pdo->query("
         :root {
             --page-w: 8.5in;
             --page-h: 11in;
+            --page-pad: 0.12in;
             --border: 2px solid #222;
             --thin: 1px solid #222;
             --text: #111;
@@ -254,13 +256,22 @@ $historyRows = $pdo->query("
             --comp-red: #b11717;
         }
 
-        * { box-sizing: border-box; }
+        * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
 
-        body {
+        html, body {
             margin: 0;
+            padding: 0;
             background: #d9d9d9;
             color: var(--text);
             font-family: var(--font-main);
+        }
+
+        body {
+            line-height: 1.06;
         }
 
         .toolbar {
@@ -314,40 +325,47 @@ $historyRows = $pdo->query("
         .status.warn { color: var(--warn); }
         .status.err { color: var(--err); }
 
-        .wrapper { padding: 18px 0 40px; }
+        .wrapper {
+            padding: 10px 0 20px;
+        }
 
         .page {
             width: var(--page-w);
             min-height: var(--page-h);
-            margin: 0 auto 18px;
+            margin: 0 auto 8px;
             background: #efefef;
-            padding: 8px 8px 10px;
+            padding: var(--page-pad);
             box-shadow: 0 0 0 1px #c8c8c8;
             position: relative;
+            overflow: hidden;
+        }
+
+        .page:last-child {
+            margin-bottom: 0;
         }
 
         .title {
             text-align: center;
             font-weight: 900;
-            font-size: 21px;
-            letter-spacing: .3px;
-            margin: 2px 0 10px;
+            font-size: 20px;
+            letter-spacing: .2px;
+            margin: 0 0 6px;
             text-transform: uppercase;
         }
 
         .topline {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            column-gap: 30px;
-            margin: 6px 6px 18px;
+            column-gap: 20px;
+            margin: 2px 4px 8px;
         }
 
         .label-line {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             font-weight: 800;
-            font-size: 16px;
+            font-size: 15px;
             text-transform: uppercase;
         }
 
@@ -356,8 +374,8 @@ $historyRows = $pdo->query("
             border: none;
             border-bottom: 2px solid #222;
             background: transparent;
-            min-height: 24px;
-            font: 700 16px var(--font-main);
+            min-height: 22px;
+            font: 700 15px var(--font-main);
             color: #111;
             padding: 0 4px;
             outline: none;
@@ -366,32 +384,34 @@ $historyRows = $pdo->query("
 
         .box {
             border: var(--border);
-            margin-bottom: 18px;
+            margin-bottom: 8px;
             background: rgba(255,255,255,.08);
+            page-break-inside: avoid;
+            break-inside: avoid;
         }
 
         .section-title {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 900;
             text-transform: uppercase;
-            padding: 4px 8px;
+            padding: 2px 6px;
             border-bottom: var(--thin);
             text-align: center;
-            letter-spacing: .2px;
+            letter-spacing: .1px;
         }
 
         .section-title.left { text-align: left; }
 
         .section-title small {
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 700;
         }
 
         .roll-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 24px;
-            padding: 12px 12px 8px;
+            gap: 14px;
+            padding: 8px 8px 4px;
         }
 
         table.grid {
@@ -404,23 +424,23 @@ $historyRows = $pdo->query("
         table.grid td {
             border: var(--thin);
             padding: 0;
-            height: 34px;
+            height: 28px;
             vertical-align: middle;
             background: transparent;
         }
 
         table.grid th {
-            font-size: 15px;
+            font-size: 13px;
             font-weight: 900;
             text-transform: uppercase;
             text-align: center;
-            padding: 4px 6px;
+            padding: 3px 4px;
         }
 
         table.grid .rowlabel {
             width: 50%;
-            padding: 4px 6px;
-            font-size: 13px;
+            padding: 3px 5px;
+            font-size: 12px;
             font-weight: 800;
             text-transform: uppercase;
         }
@@ -430,35 +450,35 @@ $historyRows = $pdo->query("
             height: 100%;
             border: none;
             background: transparent;
-            font: 700 14px var(--font-main);
-            padding: 4px 6px;
+            font: 700 13px var(--font-main);
+            padding: 3px 5px;
             outline: none;
             text-transform: uppercase;
         }
 
-        .plain-lines { padding: 10px 12px 14px; }
+        .plain-lines { padding: 6px 10px 8px; }
 
         .plain-line {
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin: 14px 0;
+            gap: 6px;
+            margin: 7px 0;
             font-weight: 800;
-            font-size: 16px;
+            font-size: 15px;
             text-transform: uppercase;
         }
 
         .yn-row {
-            margin: 8px 4px 18px;
+            margin: 4px 4px 8px;
             font-weight: 900;
-            font-size: 16px;
+            font-size: 15px;
             text-transform: uppercase;
         }
 
         .radio-group {
             display: inline-flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
         .radio-group label {
@@ -469,25 +489,25 @@ $historyRows = $pdo->query("
         }
 
         input[type="radio"] {
-            width: 16px;
-            height: 16px;
+            width: 15px;
+            height: 15px;
             accent-color: #111;
         }
 
         .mmsp-check {
-            width: 16px;
-            height: 16px;
+            width: 15px;
+            height: 15px;
             accent-color: #111;
             margin: 0;
         }
 
-        .minutes-box { padding: 8px 8px 0; }
+        .minutes-box { padding: 6px 6px 0; }
 
         .block-label {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 900;
             text-transform: uppercase;
-            margin-bottom: 6px;
+            margin-bottom: 3px;
         }
 
         .single-line {
@@ -495,11 +515,11 @@ $historyRows = $pdo->query("
             border: none;
             border-bottom: 2px solid #222;
             background: transparent;
-            padding: 4px 6px;
+            padding: 3px 5px;
             outline: none;
-            font: 700 15px var(--font-main);
+            font: 700 14px var(--font-main);
             text-transform: uppercase;
-            min-height: 28px;
+            min-height: 24px;
         }
 
         textarea {
@@ -508,29 +528,29 @@ $historyRows = $pdo->query("
             background: transparent;
             resize: none;
             outline: none;
-            font: 700 15px/1.2 var(--font-main);
-            padding: 6px 8px;
+            font: 700 14px/1.1 var(--font-main);
+            padding: 4px 6px;
             text-transform: uppercase;
             overflow: hidden;
         }
 
-        .short-notes { min-height: 52px; }
-        .comment-area { min-height: 126px; }
-        .report-area-lg { min-height: 134px; }
-        .report-area-md { min-height: 108px; }
-        .report-area-sm { min-height: 52px; }
-        .business-old { min-height: 240px; }
-        .business-new { min-height: 355px; }
+        .short-notes { min-height: 34px; }
+        .comment-area { min-height: 82px; }
+        .report-area-lg { min-height: 92px; }
+        .report-area-md { min-height: 64px; }
+        .report-area-sm { min-height: 34px; }
+        .business-old { min-height: 115px; }
+        .business-new { min-height: 150px; }
 
         .accept-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 12px;
-            padding: 6px 8px 8px;
+            gap: 10px;
+            padding: 4px 6px 5px;
             font-weight: 900;
             text-transform: uppercase;
-            font-size: 16px;
+            font-size: 14px;
         }
 
         .accept-row .lefttxt { flex: 1; }
@@ -538,35 +558,35 @@ $historyRows = $pdo->query("
         .mmsp {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             white-space: nowrap;
         }
 
         .mmsp input[type="text"] {
-            width: 90px;
+            width: 82px;
             border: none;
             border-bottom: 2px solid #222;
             background: transparent;
-            font: 700 15px var(--font-main);
+            font: 700 14px var(--font-main);
             outline: none;
             text-transform: uppercase;
         }
 
-        .treasurer-wrap { padding: 0 0 4px; }
+        .treasurer-wrap { padding: 0 0 3px; }
 
         .account-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 50px;
-            padding: 0 12px;
+            gap: 22px;
+            padding: 0 8px;
         }
 
         .moneyline {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 14px 12px 8px;
-            font-size: 16px;
+            gap: 5px;
+            padding: 8px 10px 5px;
+            font-size: 14px;
             font-weight: 900;
             text-transform: uppercase;
         }
@@ -577,37 +597,39 @@ $historyRows = $pdo->query("
             border-bottom: 2px solid #222;
             background: transparent;
             outline: none;
-            font: 700 15px var(--font-main);
+            font: 700 14px var(--font-main);
             text-transform: uppercase;
-            height: 24px;
+            height: 22px;
         }
 
-        .moneyline .moneyfill { width: 110px; }
-        .moneyline .blankfill { width: 70px; }
+        .moneyline .moneyfill { width: 100px; }
+        .moneyline .blankfill { width: 58px; }
 
         .comments-head {
-            padding: 8px 12px 2px;
-            font-size: 16px;
+            padding: 6px 10px 2px;
+            font-size: 14px;
             font-weight: 900;
             text-transform: uppercase;
         }
 
         .comments-head small {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
         }
 
         .report-box {
             border: var(--border);
-            margin-bottom: 18px;
+            margin-bottom: 8px;
             background: rgba(255,255,255,.08);
+            page-break-inside: avoid;
+            break-inside: avoid;
         }
 
-        .report-box .section-title { padding: 3px 8px; }
-        .report-content { min-height: 120px; }
+        .report-box .section-title { padding: 2px 6px; }
+        .report-content { min-height: 50px; }
 
         .footer-lines {
-            margin-top: 16px;
+            margin-top: 6px;
             padding: 0 2px;
         }
 
@@ -615,20 +637,20 @@ $historyRows = $pdo->query("
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 8px;
-            font-size: 16px;
+            gap: 10px;
+            margin-bottom: 5px;
+            font-size: 14px;
             font-weight: 900;
             text-transform: uppercase;
         }
 
         .footer-row .fill {
-            flex: 0 0 110px;
+            flex: 0 0 100px;
             border: none;
             border-bottom: 2px solid #222;
             background: transparent;
             outline: none;
-            font: 700 15px var(--font-main);
+            font: 700 14px var(--font-main);
             text-transform: uppercase;
         }
 
@@ -638,56 +660,58 @@ $historyRows = $pdo->query("
             border-bottom: 2px solid #222;
             background: transparent;
             outline: none;
-            font: 700 15px var(--font-main);
+            font: 700 14px var(--font-main);
             text-transform: uppercase;
         }
 
         .attach-note {
             text-align: center;
-            font-size: 16px;
+            font-size: 12px;
             font-weight: 900;
             text-transform: uppercase;
-            margin-top: 2px;
+            margin-top: 0;
         }
 
         .comptroller-sheet {
             border: 1px solid #c9c9c9;
-            padding: 8px 8px 6px;
-            margin-bottom: 18px;
+            padding: 5px 5px 4px;
+            margin-bottom: 8px;
+            page-break-inside: avoid;
+            break-inside: avoid;
         }
 
         .comptroller-head {
             display: grid;
-            grid-template-columns: 82px 1fr auto;
+            grid-template-columns: 60px 1fr auto;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
+            gap: 8px;
+            margin-bottom: 4px;
         }
 
         .comptroller-heading {
-            font-size: 20px;
+            font-size: 17px;
             font-weight: 700;
-            line-height: 1.1;
+            line-height: 1;
         }
 
         .comptroller-rate {
-            font-size: 17px;
+            font-size: 14px;
             font-weight: 700;
             white-space: nowrap;
         }
 
         .comptroller-rate input {
-            width: 62px;
+            width: 56px;
             border: none;
             border-bottom: 1px solid #111;
             background: transparent;
             outline: none;
-            font: 700 17px var(--font-main);
+            font: 700 14px var(--font-main);
             text-align: center;
         }
 
         .comptroller-ledger {
-            width: 120%;
+            width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
         }
@@ -699,14 +723,14 @@ $historyRows = $pdo->query("
         }
 
         .comptroller-ledger th {
-            font-size: 11px;
+            font-size: 9px;
             font-weight: 700;
             text-align: center;
-            padding: 6px 4px;
-            line-height: 1.15;
+            padding: 4px 2px;
+            line-height: 1.05;
         }
 
-        .comptroller-ledger td { height: 33px; }
+        .comptroller-ledger td { height: 24px; }
 
         .comp-input {
             width: 100%;
@@ -714,8 +738,8 @@ $historyRows = $pdo->query("
             border: none;
             background: transparent;
             outline: none;
-            font: 700 14px var(--font-main);
-            padding: 4px 5px;
+            font: 700 12px var(--font-main);
+            padding: 2px 4px;
             text-transform: uppercase;
         }
 
@@ -740,12 +764,12 @@ $historyRows = $pdo->query("
         .comptroller-summary-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            padding: 8px 2px 4px;
+            gap: 8px;
+            padding: 5px 2px 2px;
         }
 
         .comptroller-summary-item {
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 700;
             text-transform: uppercase;
             display: flex;
@@ -758,34 +782,157 @@ $historyRows = $pdo->query("
             border-bottom: 1px solid #111;
             background: transparent;
             outline: none;
-            font: 700 14px var(--font-main);
+            font: 700 12px var(--font-main);
             text-align: right;
         }
 
         .comptroller-comments-title {
-            padding: 4px 2px 2px;
-            font-size: 14px;
+            padding: 3px 2px 2px;
+            font-size: 12px;
             font-weight: 700;
             text-transform: uppercase;
         }
 
         .comptroller-comments-box {
-            min-height: 88px;
+            min-height: 52px;
             border-top: 1px solid #d7d7d7;
         }
 
+        input[readonly] {
+            color: #111;
+        }
+
+        @page {
+            size: Letter portrait;
+            margin: 0;
+        }
+
         @media print {
-            body { background: #fff; }
-            .toolbar { display: none; }
-            .wrapper { padding: 0; }
+            :root {
+                --page-pad: 0.08in;
+            }
+
+            html, body {
+                width: 8.5in;
+                min-width: 8.5in;
+                max-width: 8.5in;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #fff !important;
+            }
+
+            body {
+                overflow: visible !important;
+            }
+
+            .toolbar {
+                display: none !important;
+            }
+
+            .wrapper {
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
             .page {
-                margin: 0;
-                box-shadow: none;
+                width: 8.5in !important;
+                min-height: 11in !important;
+                height: auto !important;
+                margin: 0 !important;
+                padding: var(--page-pad) !important;
+                box-shadow: none !important;
+                border: none !important;
+                background: #fff !important;
                 page-break-after: always;
                 break-after: page;
-                background: #fff;
+                page-break-inside: avoid;
+                break-inside: avoid;
+                overflow: visible !important;
             }
-            .page:last-child { page-break-after: auto; }
+
+            .page:last-child {
+                page-break-after: auto !important;
+                break-after: auto !important;
+            }
+
+            .title { font-size: 18px !important; margin-bottom: 4px !important; }
+            .topline { margin-bottom: 6px !important; }
+            .box, .report-box, .comptroller-sheet { margin-bottom: 6px !important; }
+
+            .section-title {
+                font-size: 14px !important;
+                padding: 2px 5px !important;
+            }
+
+            .label-line,
+            .plain-line,
+            .yn-row,
+            .moneyline,
+            .comments-head,
+            .footer-row,
+            .accept-row {
+                font-size: 12px !important;
+            }
+
+            .line-input,
+            .single-line,
+            .mmsp input[type="text"],
+            .footer-row .fill,
+            .sigline,
+            .moneyline .moneyfill,
+            .moneyline .blankfill,
+            .cell-input,
+            textarea {
+                font-size: 12px !important;
+            }
+
+            table.grid th { font-size: 11px !important; }
+            table.grid .rowlabel { font-size: 10px !important; }
+            table.grid th,
+            table.grid td { height: 24px !important; }
+
+            .roll-grid { gap: 10px !important; padding: 6px 6px 3px !important; }
+
+            .short-notes { min-height: 28px !important; }
+            .comment-area { min-height: 60px !important; }
+            .report-area-md { min-height: 48px !important; }
+            .report-area-sm { min-height: 26px !important; }
+            .business-old { min-height: 86px !important; }
+            .business-new { min-height: 110px !important; }
+
+            .comptroller-ledger th { font-size: 8px !important; }
+            .comptroller-ledger td { height: 21px !important; }
+            .comp-input,
+            .comptroller-summary-item input { font-size: 10px !important; }
+
+            .comptroller-comments-box { min-height: 40px !important; }
+            .attach-note { font-size: 10px !important; }
+
+            .box,
+            .report-box,
+            .comptroller-sheet,
+            .footer-lines {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            input,
+            textarea,
+            select {
+                color: #000 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
+            textarea {
+                overflow: hidden !important;
+            }
+
+            a,
+            button {
+                color: inherit !important;
+                text-decoration: none !important;
+            }
         }
     </style>
 </head>
@@ -1005,16 +1152,14 @@ $historyRows = $pdo->query("
 
                         <table class="comptroller-ledger">
                             <colgroup>
-                                <col style="width:16%">
-                                <col style="width:7%">
-                                <col style="width:10%">
-                                <col style="width:10%">
-                                <col style="width:10%">
-                                <col style="width:11%">
-                                <col style="width:10%">
-                                <col style="width:10%">
+                                <col style="width:24%">
                                 <col style="width:8%">
-                                <col style="width:8%">
+                                <col style="width:12%">
+                                <col style="width:12%">
+                                <col style="width:10%">
+                                <col style="width:12%">
+                                <col style="width:10%">
+                                <col style="width:12%">
                             </colgroup>
                             <thead>
                             <tr>
@@ -1200,7 +1345,7 @@ function formatMoney(value) {
 
 function formatCompMoney(value) {
     const num = Number(value || 0);
-    return num === 0 ? '0' : num.toFixed(2).replace(/\.00$/, '');
+    return num === 0 ? '0.00' : num.toFixed(2);
 }
 
 function formatEndBalanceDisplay(value) {
@@ -1214,7 +1359,7 @@ function formatEndBalanceDisplay(value) {
         return '-' + formatCompMoney(num);
     }
 
-    return '0';
+    return '0.00';
 }
 
 function applyBalanceColor(el, value) {
@@ -1449,6 +1594,12 @@ document.querySelectorAll('#minutesForm input, #minutesForm textarea, #minutesFo
 
 calculateBalances();
 calculateComptrollerSection();
+
+window.addEventListener('beforeprint', () => {
+    document.querySelectorAll('textarea').forEach(autoGrow);
+    calculateBalances();
+    calculateComptrollerSection();
+});
 
 window.addEventListener('beforeunload', function () {
     if (autoSaveTimer) {
