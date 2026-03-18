@@ -152,9 +152,11 @@ $officerRows = [
     'Treasurer',
     'Housing Serv. Chair',
     'Outreach Chair',
+    'Comptroller',
     'Re-Entry Chair',
     'Fundraising Chair',
     'Alumni Coordinator',
+    'Chapter IT Chair',
 ];
 
 $reportSectionsPage2 = [
