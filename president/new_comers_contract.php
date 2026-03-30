@@ -269,16 +269,16 @@ $prefill = [
         .topbar {
             display: flex;
             justify-content: space-between;
-            gap: 12px;
+            gap: 8px;
             align-items: flex-end;
-            margin-bottom: 14px;
-            flex-wrap: wrap;
+            margin-bottom: 8px;
+            flex-wrap: nowrap;
         }
         .top-actions {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             align-items: center;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
         }
         .logo-wrap { text-align: center; margin-bottom: 8px; }
         .logo-wrap img { max-width: 96px; max-height: 96px; display: inline-block; }
@@ -301,7 +301,7 @@ $prefill = [
         .history-select, input[type="text"], input[type="date"], input[type="number"], textarea {
             width: 100%;
             border: 1px solid var(--border);
-            padding: 8px 10px;
+            padding: 6px 8px;
             background: #fff;
             border-radius: 0;
         }
@@ -314,8 +314,9 @@ $prefill = [
         button {
             border: 1px solid var(--border);
             background: #fff;
-            padding: 8px 12px;
+            padding: 6px 10px;
             cursor: pointer;
+            line-height: 1.2;
         }
         button.primary {
             background: var(--accent);
@@ -368,32 +369,29 @@ $prefill = [
             color: #333;
             min-height: 16px;
         }
-        .signature-grid {
+        .sig-lines-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
+            gap: 14px 18px;
+            margin-top: 8px;
         }
-        .sig-card {
-            border: 1px solid var(--border);
-            padding: 8px;
+        .sig-line-block {
+            min-height: 64px;
         }
-        .sig-pad-wrap {
-            border: 1px solid var(--border);
-            background: #fff;
-            margin-bottom: 8px;
+        .sig-line {
+            border-bottom: 1px solid #111;
+            height: 34px;
+            margin-bottom: 6px;
         }
-        canvas.signature-pad {
-            display: block;
-            width: 100%;
-            height: 160px;
-            touch-action: none;
-            background: #fff;
-        }
-        .sig-actions {
+        .sig-caption {
             display: flex;
-            gap: 8px;
-            margin-bottom: 8px;
-            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 12px;
+        }
+        .sig-caption span:last-child {
+            min-width: 110px;
+            text-align: right;
         }
         .print-only { display: none; }
 
@@ -428,8 +426,8 @@ $prefill = [
 <body>
 <div class="page">
     <div class="topbar no-print">
-        <div style="min-width: 280px; flex: 1 1 420px;">
-            <label class="label" for="history_id">History</label>
+        <div style="min-width: 0; flex: 1 1 auto; max-width: 620px;">
+            <label class="label" for="history_id" style="margin-bottom:2px; font-size:12px;">History</label>
             <select id="history_id" class="history-select">
                 <option value="">-- New Contract --</option>
                 <?php foreach ($historyRows as $row): ?>
@@ -461,35 +459,33 @@ $prefill = [
         <div class="section">
             <div class="section-head">Contract Information</div>
             <div class="section-body">
-                <div class="grid-2">
-                    <div class="field">
+                <div class="grid-4" style="grid-template-columns: 1.15fr 1.15fr .85fr .85fr .75fr .75fr; gap:8px;">
+                    <div class="field" style="margin-bottom:0;">
                         <label class="label" for="house_name">House Name</label>
                         <input type="text" name="house_name" id="house_name" value="<?= h($prefill['house_name']) ?>">
                     </div>
-                    <div class="field">
+                    <div class="field" style="margin-bottom:0;">
                         <label class="label" for="member_name">Member Name</label>
                         <input type="text" name="member_name" id="member_name" value="<?= h($prefill['member_name']) ?>">
                     </div>
-                </div>
-                <div class="grid-4">
-                    <div class="field">
+                    <div class="field" style="margin-bottom:0;">
                         <label class="label" for="date_issued">Date Issued</label>
                         <input type="date" name="date_issued" id="date_issued" value="<?= h($prefill['date_issued']) ?>">
                     </div>
-                    <div class="field">
+                    <div class="field" style="margin-bottom:0;">
                         <label class="label" for="effective_date">Effective Date</label>
                         <input type="date" name="effective_date" id="effective_date" value="<?= h($prefill['effective_date']) ?>">
                     </div>
-                    <div class="field">
+                    <div class="field" style="margin-bottom:0;">
                         <label class="label" for="weekly_ees">Weekly EES</label>
                         <input type="number" step="0.01" name="weekly_ees" id="weekly_ees" value="<?= h($prefill['weekly_ees']) ?>" placeholder="150.00">
                     </div>
-                    <div class="field">
+                    <div class="field" style="margin-bottom:0;">
                         <label class="label" for="contract_total">Contract Total</label>
                         <input type="number" step="0.01" name="contract_total" id="contract_total" value="<?= h($prefill['contract_total']) ?>" placeholder="330.00">
-                        <div class="money-note">Default is 2 weeks EES + 10%.</div>
                     </div>
                 </div>
+                <div class="money-note">Default contract total example is 2 weeks EES + 10%.</div>
             </div>
         </div>
 
@@ -552,30 +548,26 @@ $prefill = [
         <div class="section">
             <div class="section-head">Signatures</div>
             <div class="section-body">
-                <div class="signature-grid">
-                    <?php
-                    $sigRoles = [
-                        'member' => 'Member Signature',
-                        'president' => 'President Signature',
-                        'treasurer' => 'Treasurer Signature',
-                        'witness' => 'Witness (Member) Signature',
-                    ];
-                    foreach ($sigRoles as $key => $label):
-                    ?>
-                    <div class="sig-card">
-                        <div class="label"><?= h($label) ?></div>
-                        <div class="sig-pad-wrap">
-                            <canvas class="signature-pad" id="<?= h($key) ?>_pad"></canvas>
-                        </div>
-                        <div class="sig-actions no-print">
-                            <button type="button" onclick="clearSignature('<?= h($key) ?>')">Clear Signature</button>
-                        </div>
-                        <input type="hidden" name="<?= h($key) ?>_signature" id="<?= h($key) ?>_signature" value="<?= h($prefill[$key . '_signature']) ?>">
-                        <div class="field">
-                            <label class="label" for="<?= h($key) ?>_signature_date">Date</label>
-                            <input type="date" name="<?= h($key) ?>_signature_date" id="<?= h($key) ?>_signature_date" value="<?= h($prefill[$key . '_signature_date']) ?>">
-                        </div>
+                <div class="sig-lines-grid">
+                    <div class="sig-line-block">
+                        <div class="sig-line"></div>
+                        <div class="sig-caption"><span>Member Signature</span><span>Date</span></div>
                     </div>
+                    <div class="sig-line-block">
+                        <div class="sig-line"></div>
+                        <div class="sig-caption"><span>President Signature</span><span>Date</span></div>
+                    </div>
+                    <div class="sig-line-block">
+                        <div class="sig-line"></div>
+                        <div class="sig-caption"><span>Treasurer Signature</span><span>Date</span></div>
+                    </div>
+                    <div class="sig-line-block">
+                        <div class="sig-line"></div>
+                        <div class="sig-caption"><span>Witness (Member) Signature</span><span>Date</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
                     <?php endforeach; ?>
                 </div>
             </div>
@@ -685,14 +677,7 @@ async function loadRecord(id) {
         }
     });
 
-    ['member', 'president', 'treasurer', 'witness'].forEach((role) => {
-        const hidden = document.getElementById(role + '_signature');
-        const value = record[role + '_signature'] || '';
-        hidden.value = value;
-        pads[role].load(value);
-    });
-
-    setStatus(contractInfoComplete() ? 'Loaded record #' + id : 'Auto-save will start once Contract Information is fully filled out.');
+        setStatus(contractInfoComplete() ? 'Loaded record #' + id : 'Auto-save will start once Contract Information is fully filled out.');
 }
 
 function newRecord() {
@@ -703,7 +688,7 @@ function newRecord() {
     document.getElementById('contract_total').value = '';
 
     const today = new Date().toISOString().slice(0, 10);
-    ['date_issued','effective_date','member_signature_date','president_signature_date','treasurer_signature_date','witness_signature_date'].forEach(id => {
+    ['date_issued','effective_date'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
@@ -719,136 +704,9 @@ function newRecord() {
     document.getElementById('consequences_text').value = ''; ?>;
     document.getElementById('acknowledgement_text').value = ''; ?>;
 
-    ['member', 'president', 'treasurer', 'witness'].forEach(clearSignature);
     historySelect.value = '';
     setStatus('Auto-save will start once Contract Information is fully filled out.');
 }
-
-class SignaturePadSimple {
-    constructor(canvas, hiddenInput) {
-        this.canvas = canvas;
-        this.hiddenInput = hiddenInput;
-        this.ctx = canvas.getContext('2d');
-        this.drawing = false;
-        this.empty = true;
-        this.resize();
-        this.bind();
-        this.drawGuide();
-    }
-
-    resize() {
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        const rect = this.canvas.getBoundingClientRect();
-        this.canvas.width = Math.floor(rect.width * ratio);
-        this.canvas.height = Math.floor(rect.height * ratio);
-        this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-        this.ctx.lineWidth = 2;
-        this.ctx.lineCap = 'round';
-        this.ctx.lineJoin = 'round';
-        this.ctx.strokeStyle = '#111';
-        if (this.hiddenInput.value) {
-            this.load(this.hiddenInput.value);
-        } else {
-            this.drawGuide();
-        }
-    }
-
-    bind() {
-        const start = (e) => {
-            e.preventDefault();
-            const p = this.point(e);
-            this.drawing = true;
-            this.ctx.beginPath();
-            this.ctx.moveTo(p.x, p.y);
-        };
-        const move = (e) => {
-            if (!this.drawing) return;
-            e.preventDefault();
-            const p = this.point(e);
-            this.ctx.lineTo(p.x, p.y);
-            this.ctx.stroke();
-            this.empty = false;
-            this.store();
-        };
-        const end = (e) => {
-            if (!this.drawing) return;
-            e.preventDefault();
-            this.drawing = false;
-            this.store();
-            queueAutosave();
-        };
-        this.canvas.addEventListener('mousedown', start);
-        this.canvas.addEventListener('mousemove', move);
-        window.addEventListener('mouseup', end);
-        this.canvas.addEventListener('touchstart', start, { passive: false });
-        this.canvas.addEventListener('touchmove', move, { passive: false });
-        window.addEventListener('touchend', end, { passive: false });
-        window.addEventListener('resize', () => this.resize());
-    }
-
-    point(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        const src = e.touches && e.touches[0] ? e.touches[0] : e;
-        return {
-            x: src.clientX - rect.left,
-            y: src.clientY - rect.top,
-        };
-    }
-
-    drawGuide() {
-        const w = this.canvas.getBoundingClientRect().width;
-        const h = this.canvas.getBoundingClientRect().height;
-        this.ctx.clearRect(0, 0, w, h);
-        this.ctx.save();
-        this.ctx.strokeStyle = '#b5b5b5';
-        this.ctx.lineWidth = 1;
-        this.ctx.beginPath();
-        this.ctx.moveTo(10, h - 18);
-        this.ctx.lineTo(w - 10, h - 18);
-        this.ctx.stroke();
-        this.ctx.restore();
-    }
-
-    store() {
-        this.hiddenInput.value = this.empty ? '' : this.canvas.toDataURL('image/png');
-    }
-
-    clear() {
-        this.empty = true;
-        this.hiddenInput.value = '';
-        this.drawGuide();
-        queueAutosave();
-    }
-
-    load(dataUrl) {
-        this.drawGuide();
-        if (!dataUrl) {
-            this.empty = true;
-            return;
-        }
-        const img = new Image();
-        img.onload = () => {
-            const w = this.canvas.getBoundingClientRect().width;
-            const h = this.canvas.getBoundingClientRect().height;
-            this.ctx.clearRect(0, 0, w, h);
-            this.ctx.drawImage(img, 0, 0, w, h);
-            this.empty = false;
-            this.hiddenInput.value = dataUrl;
-        };
-        img.src = dataUrl;
-    }
-}
-
-function clearSignature(role) {
-    pads[role].clear();
-}
-
-['member', 'president', 'treasurer', 'witness'].forEach((role) => {
-    pads[role] = new SignaturePadSimple(
-        document.getElementById(role + '_pad'),
-        document.getElementById(role + '_signature')
-    );
-});
 
 form.querySelectorAll('input, textarea').forEach((el) => {
     el.addEventListener('input', queueAutosave);
