@@ -129,6 +129,8 @@ $checkboxFields = [
     'comptroller_mmsp',
     'coordinator_mmsp',
     'hsr_mmsp',
+    'old_business_mmsp',    
+    'new_business_mmsp',
     'treasurer_mmsp',
     'meeting_type_regular',
     'meeting_type_emergency',
@@ -197,6 +199,8 @@ function collectMinutesData(array $textFields, array $checkboxFields): array
     $data['comptroller_mmsp'] = posted('comptroller_mmsp') === '1' ? 1 : 0;
     $data['coordinator_mmsp'] = posted('coordinator_mmsp') === '1' ? 1 : 0;
     $data['hsr_mmsp'] = posted('hsr_mmsp') === '1' ? 1 : 0;
+    $data['old_business_mmsp'] = posted('old_business_mmsp') === '1' ? 1 : 0;
+    $data['new_business_mmsp'] = posted('new_business_mmsp') === '1' ? 1 : 0;
 
     $meetingType = posted('meeting_type');
     $data['meeting_type_regular'] = $meetingType === 'regular' ? 1 : 0;
@@ -1262,6 +1266,12 @@ $selfUrl = htmlspecialchars($_SERVER['PHP_SELF'] ?? '', ENT_QUOTES, 'UTF-8');
                 </td>
             </tr>
         </table>
+        <div class="mmtp-line">
+            MMSP to accept the Old Business report
+            <label class="box-check">
+                <input type="checkbox" value="1" name="old_business_mmsp" <?= isChecked('old_business_mmsp') ? 'checked' : '' ?>>
+            </label>
+        </div>
 
         <div class="section-title" style="font-size:18px; margin-top:12px;">
             NEW BUSINESS <span class="small">(Discussion of all new business topics.)</span>
@@ -1303,6 +1313,12 @@ $selfUrl = htmlspecialchars($_SERVER['PHP_SELF'] ?? '', ENT_QUOTES, 'UTF-8');
                 </td>
             </tr>
         </table>
+        <div class="mmtp-line">
+            MMSP to accept the New Business report
+            <label class="box-check">
+                <input type="checkbox" value="1" name="new_business_mmsp" <?= isChecked('new_business_mmsp') ? 'checked' : '' ?>>
+            </label>
+        </div>
 
         <div style="margin-top:10px; font-size:17px; font-weight:800;">
             ADJOURN MEETING AT
