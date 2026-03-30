@@ -1,0 +1,18 @@
+
+body { font-family: Arial; }
+
+/* Desktop */
+@media (min-width: 1024px) {
+    .container { width: 1200px; margin: auto; }
+}
+
+/* Tablet */
+@media (max-width: 1023px) and (min-width: 600px) {
+    .container { width: 90%; }
+}
+
+/* Mobile */
+@media (max-width: 599px) {
+    .container { width: 100%; padding: 10px; }
+    table { font-size: 12px; }
+}
