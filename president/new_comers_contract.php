@@ -438,14 +438,14 @@ $prefill = [
                         <label class="label" for="effective_date">Effective Date</label>
                         <input type="date" name="effective_date" id="effective_date" value="<?= h($prefill['effective_date']) ?>">
                     </div>
-                    <div class="field" style="margin-bottom:0;">
+                    <!-- <div class="field" style="margin-bottom:0;">
                         <label class="label" for="weekly_ees">Weekly EES</label>
                         <input type="number" step="0.01" name="weekly_ees" id="weekly_ees" value="<?= h($prefill['weekly_ees']) ?>" placeholder="150.00">
                     </div>
                     <div class="field" style="margin-bottom:0;">
                         <label class="label" for="contract_total">Contract Total</label>
                         <input type="number" step="0.01" name="contract_total" id="contract_total" value="<?= h($prefill['contract_total']) ?>" placeholder="330.00">
-                    </div>
+                    </div> -->
                 </div>
                 <div class="money-note">Default contract total example is 2 weeks EES + 10%.</div>
             </div>
