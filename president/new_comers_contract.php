@@ -4,9 +4,8 @@ declare(strict_types=1);
 /**
  * Oxford House Newcomer Contract
  * - Single-file PHP app
- * - Auto-save to MySQL
+ * - Auto-save to MySQL only after Contract Information is filled out
  * - Reload/edit prior records
- * - Mouse/touch signature pad
  * - Print button
  * - Oxford House logo support
  */
@@ -83,14 +82,6 @@ CREATE TABLE IF NOT EXISTS `{$tableName}` (
     relationship_terms LONGTEXT NULL,
     consequences_text LONGTEXT NULL,
     acknowledgement_text LONGTEXT NULL,
-    member_signature LONGTEXT NULL,
-    president_signature LONGTEXT NULL,
-    treasurer_signature LONGTEXT NULL,
-    witness_signature LONGTEXT NULL,
-    member_signature_date DATE DEFAULT NULL,
-    president_signature_date DATE DEFAULT NULL,
-    treasurer_signature_date DATE DEFAULT NULL,
-    witness_signature_date DATE DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_member_name (member_name),
@@ -123,27 +114,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
 
         $data = [
             'house_name' => trim((string)($_POST['house_name'] ?? '')),
-            'member_name' => trim((string)($_POST['member_name'] ?? 'Frank')),
+            'member_name' => trim((string)($_POST['member_name'] ?? '')),
             'date_issued' => normalize_date($_POST['date_issued'] ?? ''),
             'effective_date' => normalize_date($_POST['effective_date'] ?? ''),
-            'weekly_ees' => normalize_money($_POST['weekly_ees'] ?? '150.00') ?: '150.00',
-            'contract_total' => normalize_money($_POST['contract_total'] ?? '330.00') ?: '330.00',
-            'purpose_text' => trim((string)($_POST['purpose_text'] ?? $defaultPurpose)),
-            'newcomer_terms' => trim((string)($_POST['newcomer_terms'] ?? $defaultNewcomerTerms)),
-            'financial_terms' => trim((string)($_POST['financial_terms'] ?? $defaultFinancialTerms)),
-            'performance_terms' => trim((string)($_POST['performance_terms'] ?? $defaultPerformanceTerms)),
-            'limitations_terms' => trim((string)($_POST['limitations_terms'] ?? $defaultLimitationsTerms)),
-            'relationship_terms' => trim((string)($_POST['relationship_terms'] ?? $defaultRelationshipTerms)),
-            'consequences_text' => trim((string)($_POST['consequences_text'] ?? $defaultConsequences)),
-            'acknowledgement_text' => trim((string)($_POST['acknowledgement_text'] ?? $defaultAcknowledgement)),
-            'member_signature' => trim((string)($_POST['member_signature'] ?? '')),
-            'president_signature' => trim((string)($_POST['president_signature'] ?? '')),
-            'treasurer_signature' => trim((string)($_POST['treasurer_signature'] ?? '')),
-            'witness_signature' => trim((string)($_POST['witness_signature'] ?? '')),
-            'member_signature_date' => normalize_date($_POST['member_signature_date'] ?? ''),
-            'president_signature_date' => normalize_date($_POST['president_signature_date'] ?? ''),
-            'treasurer_signature_date' => normalize_date($_POST['treasurer_signature_date'] ?? ''),
-            'witness_signature_date' => normalize_date($_POST['witness_signature_date'] ?? ''),
+            'weekly_ees' => normalize_money($_POST['weekly_ees'] ?? '') ?: '150.00',
+            'contract_total' => normalize_money($_POST['contract_total'] ?? '') ?: '330.00',
+            'purpose_text' => trim((string)($_POST['purpose_text'] ?? '')),
+            'newcomer_terms' => trim((string)($_POST['newcomer_terms'] ?? '')),
+            'financial_terms' => trim((string)($_POST['financial_terms'] ?? '')),
+            'performance_terms' => trim((string)($_POST['performance_terms'] ?? '')),
+            'limitations_terms' => trim((string)($_POST['limitations_terms'] ?? '')),
+            'relationship_terms' => trim((string)($_POST['relationship_terms'] ?? '')),
+            'consequences_text' => trim((string)($_POST['consequences_text'] ?? '')),
+            'acknowledgement_text' => trim((string)($_POST['acknowledgement_text'] ?? '')),
         ];
 
         if ($id > 0) {
@@ -161,15 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
                 limitations_terms = :limitations_terms,
                 relationship_terms = :relationship_terms,
                 consequences_text = :consequences_text,
-                acknowledgement_text = :acknowledgement_text,
-                member_signature = :member_signature,
-                president_signature = :president_signature,
-                treasurer_signature = :treasurer_signature,
-                witness_signature = :witness_signature,
-                member_signature_date = :member_signature_date,
-                president_signature_date = :president_signature_date,
-                treasurer_signature_date = :treasurer_signature_date,
-                witness_signature_date = :witness_signature_date
+                acknowledgement_text = :acknowledgement_text
                 WHERE id = :id";
             $stmt = $pdo->prepare($sql);
             $data['id'] = $id;
@@ -178,15 +153,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
             $sql = "INSERT INTO `{$tableName}` (
                 house_name, member_name, date_issued, effective_date, weekly_ees, contract_total,
                 purpose_text, newcomer_terms, financial_terms, performance_terms, limitations_terms,
-                relationship_terms, consequences_text, acknowledgement_text,
-                member_signature, president_signature, treasurer_signature, witness_signature,
-                member_signature_date, president_signature_date, treasurer_signature_date, witness_signature_date
+                relationship_terms, consequences_text, acknowledgement_text
             ) VALUES (
                 :house_name, :member_name, :date_issued, :effective_date, :weekly_ees, :contract_total,
                 :purpose_text, :newcomer_terms, :financial_terms, :performance_terms, :limitations_terms,
-                :relationship_terms, :consequences_text, :acknowledgement_text,
-                :member_signature, :president_signature, :treasurer_signature, :witness_signature,
-                :member_signature_date, :president_signature_date, :treasurer_signature_date, :witness_signature_date
+                :relationship_terms, :consequences_text, :acknowledgement_text
             )";
             $stmt = $pdo->prepare($sql);
             $stmt->execute($data);
@@ -231,14 +202,6 @@ $prefill = [
     'relationship_terms' => '',
     'consequences_text' => '',
     'acknowledgement_text' => '',
-    'member_signature' => '',
-    'president_signature' => '',
-    'treasurer_signature' => '',
-    'witness_signature' => '',
-    'member_signature_date' => '',
-    'president_signature_date' => '',
-    'treasurer_signature_date' => '',
-    'witness_signature_date' => '',
 ];
 ?>
 <!doctype html>
@@ -251,20 +214,25 @@ $prefill = [
         :root {
             --border: #111;
             --light: #f4f4f4;
-            --mid: #d9d9d9;
             --text: #111;
             --accent: #1d4f91;
         }
         * { box-sizing: border-box; }
-        html, body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; color: var(--text); background: #e9edf2; }
-        body { padding: 20px; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            color: var(--text);
+            background: #e9edf2;
+        }
+        body { padding: 18px; }
         .page {
             max-width: 980px;
             margin: 0 auto;
             background: #fff;
             border: 1px solid #cfd6df;
             box-shadow: 0 8px 30px rgba(0,0,0,.08);
-            padding: 18px 18px 24px;
+            padding: 14px 14px 20px;
         }
         .topbar {
             display: flex;
@@ -280,36 +248,31 @@ $prefill = [
             align-items: center;
             flex-wrap: nowrap;
         }
-        .logo-wrap { text-align: center; margin-bottom: 8px; }
-        .logo-wrap img { max-width: 96px; max-height: 96px; display: inline-block; }
+        .logo-wrap { text-align: center; margin-bottom: 6px; }
+        .logo-wrap img { max-width: 88px; max-height: 88px; display: inline-block; }
         .title {
             text-align: center;
-            font-size: 30px;
+            font-size: 28px;
             font-weight: 700;
             letter-spacing: .5px;
-            margin: 4px 0 14px;
+            margin: 2px 0 10px;
             text-transform: uppercase;
         }
         .subtle { color: #444; font-size: 12px; }
-        .history-select, button, input, textarea {
-            min-height: 92px;
-            resize: none;
-            line-height: 1.35;
-            white-space: pre-wrap;
-            overflow: hidden;
-        }
         .history-select, input[type="text"], input[type="date"], input[type="number"], textarea {
             width: 100%;
             border: 1px solid var(--border);
             padding: 6px 8px;
             background: #fff;
             border-radius: 0;
+            font: inherit;
         }
         textarea {
             min-height: 92px;
-            resize: vertical;
+            resize: none;
             line-height: 1.35;
             white-space: pre-wrap;
+            overflow: hidden;
         }
         button {
             border: 1px solid var(--border);
@@ -317,51 +280,52 @@ $prefill = [
             padding: 6px 10px;
             cursor: pointer;
             line-height: 1.2;
+            font: inherit;
         }
         button.primary {
             background: var(--accent);
             border-color: var(--accent);
             color: #fff;
         }
-        .grid-2, .grid-3, .grid-4 {
+        .grid-2, .grid-4 {
             display: grid;
-            gap: 10px;
+            gap: 8px;
         }
         .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-        .field { margin-bottom: 10px; }
+        .field { margin-bottom: 8px; }
         .label {
             display: block;
             font-weight: 700;
-            margin-bottom: 4px;
-            font-size: 13px;
+            margin-bottom: 3px;
+            font-size: 12px;
             text-transform: uppercase;
         }
         .section {
             border: 1px solid var(--border);
-            margin-top: 10px;
+            margin-top: 8px;
         }
         .section-head {
             background: var(--light);
             border-bottom: 1px solid var(--border);
-            padding: 7px 10px;
+            padding: 6px 8px;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: .4px;
+            letter-spacing: .35px;
+            font-size: 13px;
         }
-        .section-body { padding: 10px; }
+        .section-body { padding: 8px; }
         .money-note {
-            font-size: 12px;
+            font-size: 11px;
             color: #444;
             margin-top: 4px;
         }
         .status-row {
             display: flex;
             justify-content: space-between;
-            gap: 10px;
+            gap: 8px;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             flex-wrap: wrap;
         }
         .autosave-status {
@@ -373,11 +337,9 @@ $prefill = [
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 14px 18px;
-            margin-top: 8px;
+            margin-top: 4px;
         }
-        .sig-line-block {
-            min-height: 64px;
-        }
+        .sig-line-block { min-height: 64px; }
         .sig-line {
             border-bottom: 1px solid #111;
             height: 34px;
@@ -393,12 +355,13 @@ $prefill = [
             min-width: 110px;
             text-align: right;
         }
-        .print-only { display: none; }
 
         @media (max-width: 860px) {
-            .grid-2, .grid-3, .grid-4, .signature-grid { grid-template-columns: 1fr; }
+            .topbar { flex-wrap: wrap; }
+            .grid-2, .grid-4, .sig-lines-grid { grid-template-columns: 1fr; }
+            .contract-info-row { grid-template-columns: 1fr !important; }
             body { padding: 8px; }
-            .page { padding: 12px; }
+            .page { padding: 10px; }
         }
 
         @page {
@@ -409,8 +372,7 @@ $prefill = [
             body { background: #fff; padding: 0; }
             .page { max-width: none; border: 0; box-shadow: none; margin: 0; padding: 0; }
             .no-print { display: none !important; }
-            .print-only { display: block; }
-            textarea, input, .sig-pad-wrap {
+            textarea, input, select {
                 border: 1px solid #000 !important;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
@@ -426,8 +388,8 @@ $prefill = [
 <body>
 <div class="page">
     <div class="topbar no-print">
-        <div style="min-width: 0; flex: 1 1 auto; max-width: 620px;">
-            <label class="label" for="history_id" style="margin-bottom:2px; font-size:12px;">History</label>
+        <div style="min-width: 0; flex: 1 1 auto; max-width: 640px;">
+            <label class="label" for="history_id" style="margin-bottom:2px;">History</label>
             <select id="history_id" class="history-select">
                 <option value="">-- New Contract --</option>
                 <?php foreach ($historyRows as $row): ?>
@@ -452,14 +414,14 @@ $prefill = [
         <input type="hidden" name="id" id="id" value="<?= h($prefill['id']) ?>">
 
         <div class="status-row no-print">
-            <div class="autosave-status" id="autosaveStatus">Ready.</div>
-            <div class="subtle">Changes auto-save as you type.</div>
+            <div class="autosave-status" id="autosaveStatus">Auto-save will start once Contract Information is fully filled out.</div>
+            <div class="subtle">Changes auto-save after required contract info is complete.</div>
         </div>
 
         <div class="section">
             <div class="section-head">Contract Information</div>
             <div class="section-body">
-                <div class="grid-4" style="grid-template-columns: 1.15fr 1.15fr .85fr .85fr .75fr .75fr; gap:8px;">
+                <div class="grid-4 contract-info-row" style="grid-template-columns: 1.15fr 1.15fr .85fr .85fr .75fr .75fr; gap:8px;">
                     <div class="field" style="margin-bottom:0;">
                         <label class="label" for="house_name">House Name</label>
                         <input type="text" name="house_name" id="house_name" value="<?= h($prefill['house_name']) ?>">
@@ -568,10 +530,6 @@ $prefill = [
                 </div>
             </div>
         </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        </div>
     </form>
 </div>
 
@@ -582,17 +540,16 @@ const historySelect = document.getElementById('history_id');
 let autosaveTimer = null;
 let currentSaveRequest = null;
 
+function setStatus(message) {
+    autosaveStatus.textContent = message;
+}
+
 function contractInfoComplete() {
     const requiredIds = ['house_name', 'member_name', 'date_issued', 'effective_date', 'weekly_ees', 'contract_total'];
     return requiredIds.every((id) => {
         const el = document.getElementById(id);
         return el && String(el.value || '').trim() !== '';
     });
-}
-const pads = {};
-
-function setStatus(message) {
-    autosaveStatus.textContent = message;
 }
 
 function formDataFromForm() {
@@ -617,10 +574,12 @@ async function saveForm() {
         setStatus('Auto-save will start once Contract Information is fully filled out.');
         return;
     }
+
     if (currentSaveRequest) {
         currentSaveRequest.abort();
     }
     currentSaveRequest = new AbortController();
+
     try {
         const response = await fetch(location.href, {
             method: 'POST',
@@ -650,7 +609,7 @@ function refreshHistoryOption(id) {
     const issued = document.getElementById('date_issued').value || 'No Date';
     const label = `${member} | ${house} | ${issued} | Updated just now`;
 
-    let option = Array.from(historySelect.options).find(opt => String(opt.value) === String(id));
+    let option = Array.from(historySelect.options).find((opt) => String(opt.value) === String(id));
     if (!option) {
         option = document.createElement('option');
         option.value = String(id);
@@ -664,11 +623,13 @@ async function loadRecord(id) {
     const fd = new FormData();
     fd.append('ajax', 'load');
     fd.append('id', id);
+
     const response = await fetch(location.href, { method: 'POST', body: fd });
     const data = await response.json();
     if (!response.ok || !data.ok) {
         throw new Error(data.message || 'Failed to load record');
     }
+
     const record = data.record;
     Object.keys(record).forEach((key) => {
         const input = document.getElementById(key);
@@ -677,35 +638,31 @@ async function loadRecord(id) {
         }
     });
 
-        setStatus(contractInfoComplete() ? 'Loaded record #' + id : 'Auto-save will start once Contract Information is fully filled out.');
+    autoResizeAll();
+    setStatus(contractInfoComplete() ? 'Loaded record #' + id : 'Auto-save will start once Contract Information is fully filled out.');
 }
 
 function newRecord() {
     form.reset();
     document.getElementById('id').value = '';
-    document.getElementById('member_name').value = '';
-    document.getElementById('weekly_ees').value = '';
-    document.getElementById('contract_total').value = '';
-
-    const today = new Date().toISOString().slice(0, 10);
-    ['date_issued','effective_date'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
-    });
-        if (el) el.value = today;
-    });
-
-    document.getElementById('purpose_text').value = ''; ?>;
-    document.getElementById('newcomer_terms').value = ''; ?>;
-    document.getElementById('financial_terms').value = ''; ?>;
-    document.getElementById('performance_terms').value = ''; ?>;
-    document.getElementById('limitations_terms').value = ''; ?>;
-    document.getElementById('relationship_terms').value = ''; ?>;
-    document.getElementById('consequences_text').value = ''; ?>;
-    document.getElementById('acknowledgement_text').value = ''; ?>;
-
+    document.getElementById('purpose_text').value = '';
+    document.getElementById('newcomer_terms').value = '';
+    document.getElementById('financial_terms').value = '';
+    document.getElementById('performance_terms').value = '';
+    document.getElementById('limitations_terms').value = '';
+    document.getElementById('relationship_terms').value = '';
+    document.getElementById('consequences_text').value = '';
+    document.getElementById('acknowledgement_text').value = '';
     historySelect.value = '';
+    autoResizeAll();
     setStatus('Auto-save will start once Contract Information is fully filled out.');
+}
+
+function autoResizeAll() {
+    document.querySelectorAll('textarea').forEach((ta) => {
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+    });
 }
 
 form.querySelectorAll('input, textarea').forEach((el) => {
@@ -713,23 +670,14 @@ form.querySelectorAll('input, textarea').forEach((el) => {
     el.addEventListener('change', queueAutosave);
 });
 
-['house_name', 'member_name', 'date_issued', 'effective_date', 'weekly_ees', 'contract_total'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) {
-        el.addEventListener('input', queueAutosave);
-        el.addEventListener('change', queueAutosave);
-    }
-});
-
-// AUTO-RESIZE TEXTAREAS (NO SCROLLBARS)
 document.querySelectorAll('textarea').forEach((ta) => {
-    function autoResize() {
+    const resize = () => {
         ta.style.height = 'auto';
         ta.style.height = ta.scrollHeight + 'px';
-    }
-    ta.addEventListener('input', autoResize);
-    ta.addEventListener('change', autoResize);
-    autoResize();
+    };
+    ta.addEventListener('input', resize);
+    ta.addEventListener('change', resize);
+    resize();
 });
 
 historySelect.addEventListener('change', async function () {
