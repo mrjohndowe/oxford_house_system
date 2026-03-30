@@ -452,56 +452,56 @@ $prefill = [
         </div>
 
         <div class="section">
-            <div class="section-head">Purpose</div>
+            <div class="section-head">Purpose <code>This contract is established to <b>re-establish accountability, structure, and financial responsibility</b>within the Oxford House due to:</code></div>
             <div class="section-body">
                 <textarea name="purpose_text" id="purpose_text" placeholder="<?= h($defaultPurpose) ?>"></textarea>
             </div>
         </div>
 
         <div class="section">
-            <div class="section-head">Terms of Newcomer Status</div>
+            <div class="section-head">Terms of Newcomer Status <code>By agreement of the house, the above-named member is hereby placed on <b>Newcomer Status</b>, which includes the following conditions:</code></div>
             <div class="section-body">
                 <textarea name="newcomer_terms" id="newcomer_terms" placeholder="<?= h($defaultNewcomerTerms) ?>"></textarea>
             </div>
         </div>
 
         <div class="section">
-            <div class="section-head">Financial Requirements (EES)</div>
+            <div class="section-head">Financial Requirements (EES) <code>The member agrees to the following financial terms:</code></div>
             <div class="section-body">
                 <textarea name="financial_terms" id="financial_terms" placeholder="<?= h($defaultFinancialTerms) ?>"></textarea>
             </div>
         </div>
 
         <div class="section">
-            <div class="section-head">Performance Requirements</div>
+            <div class="section-head">Performance Requirements <code>To be removed from Newcomer Status, the member must demonstrate:</code></div>
             <div class="section-body">
                 <textarea name="performance_terms" id="performance_terms" placeholder="<?= h($defaultPerformanceTerms) ?>"></textarea>
             </div>
         </div>
 
         <div class="section">
-            <div class="section-head">Limitations During Newcomer Status</div>
+            <div class="section-head">Limitations During Newcomer Status <code>While on Newcomer Status, the member acknowledges:</code></div>
             <div class="section-body">
                 <textarea name="limitations_terms" id="limitations_terms" placeholder="<?= h($defaultLimitationsTerms) ?>"></textarea>
             </div>
         </div>
 
         <div class="section">
-            <div class="section-head">Relationship to Behavioral Contract</div>
+            <div class="section-head">Relationship to Behavioral Contract <code>The member acknowledges that they are currently under both:</code></div>
             <div class="section-body">
                 <textarea name="relationship_terms" id="relationship_terms" placeholder="<?= h($defaultRelationshipTerms) ?>"></textarea>
             </div>
         </div>
 
         <div class="section">
-            <div class="section-head">Consequences</div>
+            <div class="section-head">Consequences <code>Failure to comply with the terms of this contract may result in:</code></div>
             <div class="section-body">
                 <textarea name="consequences_text" id="consequences_text" placeholder="<?= h($defaultConsequences) ?>"></textarea>
             </div>
         </div>
 
         <div class="section">
-            <div class="section-head">Acknowledgment</div>
+            <div class="section-head">Acknowledgment <code>I understand that I am being given the opportunity to remain in the house under structured conditions. I acknowledge that:</code></div>
             <div class="section-body">
                 <textarea name="acknowledgement_text" id="acknowledgement_text" placeholder="<?= h($defaultAcknowledgement) ?>"></textarea>
             </div>
@@ -545,7 +545,7 @@ function setStatus(message) {
 }
 
 function contractInfoComplete() {
-    const requiredIds = ['house_name', 'member_name', 'date_issued', 'effective_date', 'weekly_ees', 'contract_total'];
+    const requiredIds = ['house_name', 'member_name', 'date_issued', 'effective_date'];
     return requiredIds.every((id) => {
         const el = document.getElementById(id);
         return el && String(el.value || '').trim() !== '';
