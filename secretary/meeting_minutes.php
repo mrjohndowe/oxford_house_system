@@ -425,6 +425,22 @@ $selfUrl = htmlspecialchars($_SERVER['PHP_SELF'] ?? '', ENT_QUOTES, 'UTF-8');
 
     body { padding: 18px 0; }
 
+    .page,
+    .page input[type="text"],
+    .page textarea,
+    .page .label,
+    .page .small,
+    .page .section-title,
+    .page .report-heading,
+    .page .title-line,
+    .page .mmtp-line,
+    .page .footer-page,
+    .page table,
+    .page span,
+    .page div {
+        text-transform: uppercase;
+    }
+
     form {
         margin: 0 auto;
         width: var(--page-w);
@@ -518,6 +534,20 @@ $selfUrl = htmlspecialchars($_SERVER['PHP_SELF'] ?? '', ENT_QUOTES, 'UTF-8');
     .page.page-3 .signature-line-row { gap: 10px; }
     .page.page-3 .signature-line-field span { font-size: 12px; }
     .page.page-3 .footer-page { bottom: 0.12in; }
+
+
+    /* PAGE 1 FIT TUNING TO PREVENT BOTTOM CUTOFF WHILE KEEPING THE ORIGINAL LOOK */
+    .page:first-of-type { padding-bottom: 0.36in; }
+    .page:first-of-type .report-box { padding: 2px 4px 4px; }
+    .page:first-of-type .report-heading { font-size: 16px; margin-bottom: 1px; }
+    .page:first-of-type .money-table th,
+    .page:first-of-type .money-table td,
+    .page:first-of-type .comptroller-table th,
+    .page:first-of-type .comptroller-table td { height: 20px; font-size: 10px; }
+    .page:first-of-type .comments-5 { height: 94px; }
+    .page:first-of-type .comments-3 { height: 52px; }
+    .page:first-of-type .mmtp-line { margin-top: 1px; font-size: 11px; }
+    .page:first-of-type .footer-page { bottom: 0.10in; }
 
     .header {
         display: flex;
@@ -1187,7 +1217,7 @@ $selfUrl = htmlspecialchars($_SERVER['PHP_SELF'] ?? '', ENT_QUOTES, 'UTF-8');
                 <span class="subnote">(Record any warnings, contracts, and/or fines)</span>
             </div>
             <div class="lined-block comments-3">
-                <textarea class="autofit-comment" data-max-font="13" data-min-font="8" name="comptroller_comments"><?= h(posted('comptroller_comments')) ?></textarea>
+                <textarea class="autofit-comment" data-max-font="13" data-min-font="7" name="comptroller_comments"><?= h(posted('comptroller_comments')) ?></textarea>
             </div>
             <div class="mmtp-line">
                 MMSP to accept the Comptroller report
@@ -1197,7 +1227,7 @@ $selfUrl = htmlspecialchars($_SERVER['PHP_SELF'] ?? '', ENT_QUOTES, 'UTF-8');
             </div>
         </div>
 
-        <div class="footer-page">PAGE 1 of 3</div>
+        <!-- <div class="footer-page">PAGE 1 of 3</div> -->
     </section>
 
     <section class="page">
@@ -1208,7 +1238,7 @@ $selfUrl = htmlspecialchars($_SERVER['PHP_SELF'] ?? '', ENT_QUOTES, 'UTF-8');
         <div class="full-rect lined-block">
             <textarea name="ees_plan"><?= h(posted('ees_plan')) ?></textarea>
         </div>
-        <div class="footer-page">PAGE 2 of 3</div>
+        <!-- <div class="footer-page">PAGE 2 of 3</div> -->
     </section>
 
     <section class="page page-3">
@@ -1308,7 +1338,7 @@ $selfUrl = htmlspecialchars($_SERVER['PHP_SELF'] ?? '', ENT_QUOTES, 'UTF-8');
             <tr>
                 <td colspan="9" style="padding:0;">
                     <div class="lined-block" style="height:250px; border:none;">
-                        <textarea name="new_business" style="padding:2px 4px;"><?= h(posted('new_business')) ?></textarea>
+                        <textarea class="autofit-comment" data-max-font="13" data-min-font="8" name="new_business" style="padding:2px 4px;"><?= h(posted('new_business')) ?></textarea>
                     </div>
                 </td>
             </tr>
@@ -1372,7 +1402,7 @@ $selfUrl = htmlspecialchars($_SERVER['PHP_SELF'] ?? '', ENT_QUOTES, 'UTF-8');
             </div>
         </div>
 
-        <div class="footer-page">PAGE 3 of 3</div>
+        <!-- <div class="footer-page">PAGE 3 of 3</div> -->
     </section>
 </form>
 
@@ -1385,6 +1415,20 @@ document.addEventListener('DOMContentLoaded', function () {
     let autosaveTimer = null;
     let isAutosaving = false;
     let pendingAutosave = false;
+
+    function normalizeUppercaseValue(el) {
+        if (!el || typeof el.value !== 'string') return;
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        const upper = el.value.toUpperCase();
+
+        if (el.value !== upper) {
+            el.value = upper;
+            if (typeof start === 'number' && typeof end === 'number') {
+                el.setSelectionRange(start, end);
+            }
+        }
+    }
 
     function setAutosaveStatus(text, state) {
         if (!autosaveStatus) return;
@@ -1499,10 +1543,20 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     if (form) {
-        form.querySelectorAll('input[type="text"], textarea').forEach(function (el) {
-            el.addEventListener('input', queueAutosave);
-            el.addEventListener('change', queueAutosave);
-            el.addEventListener('blur', queueAutosave);
+        form.querySelectorAll('.page input[type="text"], .page textarea').forEach(function (el) {
+            normalizeUppercaseValue(el);
+            el.addEventListener('input', function () {
+                normalizeUppercaseValue(el);
+                queueAutosave();
+            });
+            el.addEventListener('change', function () {
+                normalizeUppercaseValue(el);
+                queueAutosave();
+            });
+            el.addEventListener('blur', function () {
+                normalizeUppercaseValue(el);
+                queueAutosave();
+            });
         });
 
         form.querySelectorAll('input[type="checkbox"], input[type="radio"], select').forEach(function (el) {
