@@ -1,0 +1,889 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Oxford House Newcomer Contract
+ * - Single-file PHP app
+ * - Auto-save to MySQL
+ * - Reload/edit prior records
+ * - Mouse/touch signature pad
+ * - Print button
+ * - Oxford House logo support
+ */
+
+require_once __DIR__ . '/../extras/master_config.php';
+
+$logoPath = '../images/oxford_house_logo.png';
+$tableName = 'oxford_newcomer_contracts';
+
+function h(mixed $value): string
+{
+    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+}
+
+function json_response(array $data, int $status = 200): never
+{
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+function normalize_money(mixed $value): string
+{
+    $raw = trim((string)$value);
+    if ($raw === '') {
+        return '';
+    }
+    $raw = str_replace([',', '$', ' '], '', $raw);
+    if (!is_numeric($raw)) {
+        return '';
+    }
+    return number_format((float)$raw, 2, '.', '');
+}
+
+function normalize_date(mixed $value): string
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return '';
+    }
+    $ts = strtotime($value);
+    return $ts ? date('Y-m-d', $ts) : '';
+}
+
+try {
+    $pdo = new PDO(
+        "mysql:host={$dbHost};dbname={$dbName};charset=utf8mb4",
+        $dbUser,
+        $dbPass,
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]
+    );
+} catch (PDOException $e) {
+    die('Database connection failed: ' . h($e->getMessage()));
+}
+
+$pdo->exec("
+CREATE TABLE IF NOT EXISTS `{$tableName}` (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    house_name VARCHAR(255) NOT NULL DEFAULT '',
+    member_name VARCHAR(255) NOT NULL DEFAULT '',
+    date_issued DATE DEFAULT NULL,
+    effective_date DATE DEFAULT NULL,
+    weekly_ees DECIMAL(10,2) NOT NULL DEFAULT 150.00,
+    contract_total DECIMAL(10,2) NOT NULL DEFAULT 330.00,
+    purpose_text LONGTEXT NULL,
+    newcomer_terms LONGTEXT NULL,
+    financial_terms LONGTEXT NULL,
+    performance_terms LONGTEXT NULL,
+    limitations_terms LONGTEXT NULL,
+    relationship_terms LONGTEXT NULL,
+    consequences_text LONGTEXT NULL,
+    acknowledgement_text LONGTEXT NULL,
+    member_signature LONGTEXT NULL,
+    president_signature LONGTEXT NULL,
+    treasurer_signature LONGTEXT NULL,
+    witness_signature LONGTEXT NULL,
+    member_signature_date DATE DEFAULT NULL,
+    president_signature_date DATE DEFAULT NULL,
+    treasurer_signature_date DATE DEFAULT NULL,
+    witness_signature_date DATE DEFAULT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_member_name (member_name),
+    INDEX idx_house_name (house_name),
+    INDEX idx_date_issued (date_issued)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+");
+
+$defaultPurpose = "This contract is established to re-establish accountability, structure, and financial responsibility within the Oxford House due to:\n\n- Missed and/or late EES payments\n- Recent contract violations\n- Need to demonstrate consistent adherence to house standards";
+
+$defaultNewcomerTerms = "- The member will be treated as a new member of the house\n- The member must re-earn full member standing\n- The member acknowledges reduced trust and increased accountability expectations";
+
+$defaultFinancialTerms = "- Weekly EES amount: $150.00\n- Contract obligation: Two (2) weeks EES + 10% = $330.00 total\n- Make all payments on time and in full\n- Communicate prior to the weekly house meeting if unable to meet payment requirements\n- Actively work toward maintaining a current or ahead balance";
+
+$defaultPerformanceTerms = "- Consistent and timely EES payments\n- No further contract violations\n- Reliability in all house responsibilities\n- Active participation in house expectations\n- Removal from newcomer status will be determined by house vote based on demonstrated consistency";
+
+$defaultLimitationsTerms = "- Reduced credibility in house decisions and discussions\n- Increased scrutiny regarding chores, meeting attendance, and behavior\n- Expectation to demonstrate financial responsibility, program consistency, and accountability to the house";
+
+$defaultRelationshipTerms = "Behavioral Contract (Conduct-Based): Any future violation involving paraphernalia or similar behavior may result in immediate dismissal.\n\nNewcomer Contract (Accountability-Based): The member must demonstrate the ability to maintain payments, follow house structure, and remain consistent and accountable.";
+
+$defaultConsequences = "Failure to comply with the terms of this contract may result in additional house sanctions, extended newcomer status, or review for dismissal from the house.";
+
+$defaultAcknowledgement = "I understand that I am being given the opportunity to remain in the house under structured conditions. I acknowledge that I am in a high-risk but recoverable position, that the house is providing grace, structure, and clear expectations, and that my continued residency depends on my ability to meet these expectations consistently.";
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
+    $action = (string)$_POST['ajax'];
+
+    if ($action === 'autosave') {
+        $id = isset($_POST['id']) && ctype_digit((string)$_POST['id']) ? (int)$_POST['id'] : 0;
+
+        $data = [
+            'house_name' => trim((string)($_POST['house_name'] ?? '')),
+            'member_name' => trim((string)($_POST['member_name'] ?? 'Frank')),
+            'date_issued' => normalize_date($_POST['date_issued'] ?? ''),
+            'effective_date' => normalize_date($_POST['effective_date'] ?? ''),
+            'weekly_ees' => normalize_money($_POST['weekly_ees'] ?? '150.00') ?: '150.00',
+            'contract_total' => normalize_money($_POST['contract_total'] ?? '330.00') ?: '330.00',
+            'purpose_text' => trim((string)($_POST['purpose_text'] ?? $defaultPurpose)),
+            'newcomer_terms' => trim((string)($_POST['newcomer_terms'] ?? $defaultNewcomerTerms)),
+            'financial_terms' => trim((string)($_POST['financial_terms'] ?? $defaultFinancialTerms)),
+            'performance_terms' => trim((string)($_POST['performance_terms'] ?? $defaultPerformanceTerms)),
+            'limitations_terms' => trim((string)($_POST['limitations_terms'] ?? $defaultLimitationsTerms)),
+            'relationship_terms' => trim((string)($_POST['relationship_terms'] ?? $defaultRelationshipTerms)),
+            'consequences_text' => trim((string)($_POST['consequences_text'] ?? $defaultConsequences)),
+            'acknowledgement_text' => trim((string)($_POST['acknowledgement_text'] ?? $defaultAcknowledgement)),
+            'member_signature' => trim((string)($_POST['member_signature'] ?? '')),
+            'president_signature' => trim((string)($_POST['president_signature'] ?? '')),
+            'treasurer_signature' => trim((string)($_POST['treasurer_signature'] ?? '')),
+            'witness_signature' => trim((string)($_POST['witness_signature'] ?? '')),
+            'member_signature_date' => normalize_date($_POST['member_signature_date'] ?? ''),
+            'president_signature_date' => normalize_date($_POST['president_signature_date'] ?? ''),
+            'treasurer_signature_date' => normalize_date($_POST['treasurer_signature_date'] ?? ''),
+            'witness_signature_date' => normalize_date($_POST['witness_signature_date'] ?? ''),
+        ];
+
+        if ($id > 0) {
+            $sql = "UPDATE `{$tableName}` SET
+                house_name = :house_name,
+                member_name = :member_name,
+                date_issued = :date_issued,
+                effective_date = :effective_date,
+                weekly_ees = :weekly_ees,
+                contract_total = :contract_total,
+                purpose_text = :purpose_text,
+                newcomer_terms = :newcomer_terms,
+                financial_terms = :financial_terms,
+                performance_terms = :performance_terms,
+                limitations_terms = :limitations_terms,
+                relationship_terms = :relationship_terms,
+                consequences_text = :consequences_text,
+                acknowledgement_text = :acknowledgement_text,
+                member_signature = :member_signature,
+                president_signature = :president_signature,
+                treasurer_signature = :treasurer_signature,
+                witness_signature = :witness_signature,
+                member_signature_date = :member_signature_date,
+                president_signature_date = :president_signature_date,
+                treasurer_signature_date = :treasurer_signature_date,
+                witness_signature_date = :witness_signature_date
+                WHERE id = :id";
+            $stmt = $pdo->prepare($sql);
+            $data['id'] = $id;
+            $stmt->execute($data);
+        } else {
+            $sql = "INSERT INTO `{$tableName}` (
+                house_name, member_name, date_issued, effective_date, weekly_ees, contract_total,
+                purpose_text, newcomer_terms, financial_terms, performance_terms, limitations_terms,
+                relationship_terms, consequences_text, acknowledgement_text,
+                member_signature, president_signature, treasurer_signature, witness_signature,
+                member_signature_date, president_signature_date, treasurer_signature_date, witness_signature_date
+            ) VALUES (
+                :house_name, :member_name, :date_issued, :effective_date, :weekly_ees, :contract_total,
+                :purpose_text, :newcomer_terms, :financial_terms, :performance_terms, :limitations_terms,
+                :relationship_terms, :consequences_text, :acknowledgement_text,
+                :member_signature, :president_signature, :treasurer_signature, :witness_signature,
+                :member_signature_date, :president_signature_date, :treasurer_signature_date, :witness_signature_date
+            )";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($data);
+            $id = (int)$pdo->lastInsertId();
+        }
+
+        json_response([
+            'ok' => true,
+            'id' => $id,
+            'message' => 'Auto-saved',
+            'saved_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    if ($action === 'load' && isset($_POST['id']) && ctype_digit((string)$_POST['id'])) {
+        $stmt = $pdo->prepare("SELECT * FROM `{$tableName}` WHERE id = :id LIMIT 1");
+        $stmt->execute(['id' => (int)$_POST['id']]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            json_response(['ok' => false, 'message' => 'Record not found'], 404);
+        }
+        json_response(['ok' => true, 'record' => $row]);
+    }
+}
+
+$historyStmt = $pdo->query("SELECT id, member_name, house_name, date_issued, updated_at FROM `{$tableName}` ORDER BY updated_at DESC, id DESC");
+$historyRows = $historyStmt->fetchAll();
+
+$prefill = [
+    'id' => '',
+    'house_name' => '',
+    'member_name' => '',
+    'date_issued' => '',
+    'effective_date' => '',
+    'weekly_ees' => '',
+    'contract_total' => '',
+    'purpose_text' => '',
+    'newcomer_terms' => '',
+    'financial_terms' => '',
+    'performance_terms' => '',
+    'limitations_terms' => '',
+    'relationship_terms' => '',
+    'consequences_text' => '',
+    'acknowledgement_text' => '',
+    'member_signature' => '',
+    'president_signature' => '',
+    'treasurer_signature' => '',
+    'witness_signature' => '',
+    'member_signature_date' => '',
+    'president_signature_date' => '',
+    'treasurer_signature_date' => '',
+    'witness_signature_date' => '',
+];
+?>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Oxford House Newcomer Contract</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            --border: #111;
+            --light: #f4f4f4;
+            --mid: #d9d9d9;
+            --text: #111;
+            --accent: #1d4f91;
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; color: var(--text); background: #e9edf2; }
+        body { padding: 20px; }
+        .page {
+            max-width: 980px;
+            margin: 0 auto;
+            background: #fff;
+            border: 1px solid #cfd6df;
+            box-shadow: 0 8px 30px rgba(0,0,0,.08);
+            padding: 18px 18px 24px;
+        }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-end;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .top-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .logo-wrap { text-align: center; margin-bottom: 8px; }
+        .logo-wrap img { max-width: 96px; max-height: 96px; display: inline-block; }
+        .title {
+            text-align: center;
+            font-size: 30px;
+            font-weight: 700;
+            letter-spacing: .5px;
+            margin: 4px 0 14px;
+            text-transform: uppercase;
+        }
+        .subtle { color: #444; font-size: 12px; }
+        .history-select, button, input, textarea {
+            min-height: 92px;
+            resize: none;
+            line-height: 1.35;
+            white-space: pre-wrap;
+            overflow: hidden;
+        }
+        .history-select, input[type="text"], input[type="date"], input[type="number"], textarea {
+            width: 100%;
+            border: 1px solid var(--border);
+            padding: 8px 10px;
+            background: #fff;
+            border-radius: 0;
+        }
+        textarea {
+            min-height: 92px;
+            resize: vertical;
+            line-height: 1.35;
+            white-space: pre-wrap;
+        }
+        button {
+            border: 1px solid var(--border);
+            background: #fff;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        button.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .grid-2, .grid-3, .grid-4 {
+            display: grid;
+            gap: 10px;
+        }
+        .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .field { margin-bottom: 10px; }
+        .label {
+            display: block;
+            font-weight: 700;
+            margin-bottom: 4px;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+        .section {
+            border: 1px solid var(--border);
+            margin-top: 10px;
+        }
+        .section-head {
+            background: var(--light);
+            border-bottom: 1px solid var(--border);
+            padding: 7px 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+        }
+        .section-body { padding: 10px; }
+        .money-note {
+            font-size: 12px;
+            color: #444;
+            margin-top: 4px;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .autosave-status {
+            font-size: 12px;
+            color: #333;
+            min-height: 16px;
+        }
+        .signature-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+        .sig-card {
+            border: 1px solid var(--border);
+            padding: 8px;
+        }
+        .sig-pad-wrap {
+            border: 1px solid var(--border);
+            background: #fff;
+            margin-bottom: 8px;
+        }
+        canvas.signature-pad {
+            display: block;
+            width: 100%;
+            height: 160px;
+            touch-action: none;
+            background: #fff;
+        }
+        .sig-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        .print-only { display: none; }
+
+        @media (max-width: 860px) {
+            .grid-2, .grid-3, .grid-4, .signature-grid { grid-template-columns: 1fr; }
+            body { padding: 8px; }
+            .page { padding: 12px; }
+        }
+
+        @page {
+            size: Letter;
+            margin: 0.35in;
+        }
+        @media print {
+            body { background: #fff; padding: 0; }
+            .page { max-width: none; border: 0; box-shadow: none; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+            .print-only { display: block; }
+            textarea, input, .sig-pad-wrap {
+                border: 1px solid #000 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .section-head {
+                background: #efefef !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="topbar no-print">
+        <div style="min-width: 280px; flex: 1 1 420px;">
+            <label class="label" for="history_id">History</label>
+            <select id="history_id" class="history-select">
+                <option value="">-- New Contract --</option>
+                <?php foreach ($historyRows as $row): ?>
+                    <option value="<?= (int)$row['id'] ?>">
+                        <?= h(($row['member_name'] ?: 'Unnamed Member') . ' | ' . ($row['house_name'] ?: 'No House') . ' | ' . ($row['date_issued'] ?: 'No Date') . ' | Updated ' . $row['updated_at']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="top-actions">
+            <button type="button" onclick="newRecord()">New</button>
+            <button type="button" onclick="window.print()">Print</button>
+        </div>
+    </div>
+
+    <div class="logo-wrap">
+        <img src="<?= h($logoPath) ?>" alt="Oxford House Logo" onerror="this.style.display='none'">
+    </div>
+    <div class="title">Oxford House Newcomer Contract</div>
+
+    <form id="contractForm" autocomplete="off">
+        <input type="hidden" name="id" id="id" value="<?= h($prefill['id']) ?>">
+
+        <div class="status-row no-print">
+            <div class="autosave-status" id="autosaveStatus">Ready.</div>
+            <div class="subtle">Changes auto-save as you type.</div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">Contract Information</div>
+            <div class="section-body">
+                <div class="grid-2">
+                    <div class="field">
+                        <label class="label" for="house_name">House Name</label>
+                        <input type="text" name="house_name" id="house_name" value="<?= h($prefill['house_name']) ?>">
+                    </div>
+                    <div class="field">
+                        <label class="label" for="member_name">Member Name</label>
+                        <input type="text" name="member_name" id="member_name" value="<?= h($prefill['member_name']) ?>">
+                    </div>
+                </div>
+                <div class="grid-4">
+                    <div class="field">
+                        <label class="label" for="date_issued">Date Issued</label>
+                        <input type="date" name="date_issued" id="date_issued" value="<?= h($prefill['date_issued']) ?>">
+                    </div>
+                    <div class="field">
+                        <label class="label" for="effective_date">Effective Date</label>
+                        <input type="date" name="effective_date" id="effective_date" value="<?= h($prefill['effective_date']) ?>">
+                    </div>
+                    <div class="field">
+                        <label class="label" for="weekly_ees">Weekly EES</label>
+                        <input type="number" step="0.01" name="weekly_ees" id="weekly_ees" value="<?= h($prefill['weekly_ees']) ?>" placeholder="150.00">
+                    </div>
+                    <div class="field">
+                        <label class="label" for="contract_total">Contract Total</label>
+                        <input type="number" step="0.01" name="contract_total" id="contract_total" value="<?= h($prefill['contract_total']) ?>" placeholder="330.00">
+                        <div class="money-note">Default is 2 weeks EES + 10%.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">Purpose</div>
+            <div class="section-body">
+                <textarea name="purpose_text" id="purpose_text" placeholder="<?= h($defaultPurpose) ?>"></textarea>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">Terms of Newcomer Status</div>
+            <div class="section-body">
+                <textarea name="newcomer_terms" id="newcomer_terms" placeholder="<?= h($defaultNewcomerTerms) ?>"></textarea>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">Financial Requirements (EES)</div>
+            <div class="section-body">
+                <textarea name="financial_terms" id="financial_terms" placeholder="<?= h($defaultFinancialTerms) ?>"></textarea>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">Performance Requirements</div>
+            <div class="section-body">
+                <textarea name="performance_terms" id="performance_terms" placeholder="<?= h($defaultPerformanceTerms) ?>"></textarea>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">Limitations During Newcomer Status</div>
+            <div class="section-body">
+                <textarea name="limitations_terms" id="limitations_terms" placeholder="<?= h($defaultLimitationsTerms) ?>"></textarea>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">Relationship to Behavioral Contract</div>
+            <div class="section-body">
+                <textarea name="relationship_terms" id="relationship_terms" placeholder="<?= h($defaultRelationshipTerms) ?>"></textarea>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">Consequences</div>
+            <div class="section-body">
+                <textarea name="consequences_text" id="consequences_text" placeholder="<?= h($defaultConsequences) ?>"></textarea>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">Acknowledgment</div>
+            <div class="section-body">
+                <textarea name="acknowledgement_text" id="acknowledgement_text" placeholder="<?= h($defaultAcknowledgement) ?>"></textarea>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">Signatures</div>
+            <div class="section-body">
+                <div class="signature-grid">
+                    <?php
+                    $sigRoles = [
+                        'member' => 'Member Signature',
+                        'president' => 'President Signature',
+                        'treasurer' => 'Treasurer Signature',
+                        'witness' => 'Witness (Member) Signature',
+                    ];
+                    foreach ($sigRoles as $key => $label):
+                    ?>
+                    <div class="sig-card">
+                        <div class="label"><?= h($label) ?></div>
+                        <div class="sig-pad-wrap">
+                            <canvas class="signature-pad" id="<?= h($key) ?>_pad"></canvas>
+                        </div>
+                        <div class="sig-actions no-print">
+                            <button type="button" onclick="clearSignature('<?= h($key) ?>')">Clear Signature</button>
+                        </div>
+                        <input type="hidden" name="<?= h($key) ?>_signature" id="<?= h($key) ?>_signature" value="<?= h($prefill[$key . '_signature']) ?>">
+                        <div class="field">
+                            <label class="label" for="<?= h($key) ?>_signature_date">Date</label>
+                            <input type="date" name="<?= h($key) ?>_signature_date" id="<?= h($key) ?>_signature_date" value="<?= h($prefill[$key . '_signature_date']) ?>">
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+const form = document.getElementById('contractForm');
+const autosaveStatus = document.getElementById('autosaveStatus');
+const historySelect = document.getElementById('history_id');
+let autosaveTimer = null;
+let currentSaveRequest = null;
+
+function contractInfoComplete() {
+    const requiredIds = ['house_name', 'member_name', 'date_issued', 'effective_date', 'weekly_ees', 'contract_total'];
+    return requiredIds.every((id) => {
+        const el = document.getElementById(id);
+        return el && String(el.value || '').trim() !== '';
+    });
+}
+const pads = {};
+
+function setStatus(message) {
+    autosaveStatus.textContent = message;
+}
+
+function formDataFromForm() {
+    const fd = new FormData(form);
+    fd.append('ajax', 'autosave');
+    return fd;
+}
+
+function queueAutosave() {
+    if (!contractInfoComplete()) {
+        setStatus('Auto-save will start once Contract Information is fully filled out.');
+        window.clearTimeout(autosaveTimer);
+        return;
+    }
+    setStatus('Saving...');
+    window.clearTimeout(autosaveTimer);
+    autosaveTimer = window.setTimeout(saveForm, 450);
+}
+
+async function saveForm() {
+    if (!contractInfoComplete()) {
+        setStatus('Auto-save will start once Contract Information is fully filled out.');
+        return;
+    }
+    if (currentSaveRequest) {
+        currentSaveRequest.abort();
+    }
+    currentSaveRequest = new AbortController();
+    try {
+        const response = await fetch(location.href, {
+            method: 'POST',
+            body: formDataFromForm(),
+            signal: currentSaveRequest.signal,
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.message || 'Save failed');
+        }
+        if (data.id) {
+            document.getElementById('id').value = data.id;
+        }
+        setStatus('Auto-saved: ' + data.saved_at);
+        refreshHistoryOption(data.id);
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            setStatus('Save error: ' + err.message);
+        }
+    }
+}
+
+function refreshHistoryOption(id) {
+    if (!id) return;
+    const member = document.getElementById('member_name').value || 'Unnamed Member';
+    const house = document.getElementById('house_name').value || 'No House';
+    const issued = document.getElementById('date_issued').value || 'No Date';
+    const label = `${member} | ${house} | ${issued} | Updated just now`;
+
+    let option = Array.from(historySelect.options).find(opt => String(opt.value) === String(id));
+    if (!option) {
+        option = document.createElement('option');
+        option.value = String(id);
+        historySelect.appendChild(option);
+    }
+    option.textContent = label;
+    historySelect.value = String(id);
+}
+
+async function loadRecord(id) {
+    const fd = new FormData();
+    fd.append('ajax', 'load');
+    fd.append('id', id);
+    const response = await fetch(location.href, { method: 'POST', body: fd });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+        throw new Error(data.message || 'Failed to load record');
+    }
+    const record = data.record;
+    Object.keys(record).forEach((key) => {
+        const input = document.getElementById(key);
+        if (input) {
+            input.value = record[key] ?? '';
+        }
+    });
+
+    ['member', 'president', 'treasurer', 'witness'].forEach((role) => {
+        const hidden = document.getElementById(role + '_signature');
+        const value = record[role + '_signature'] || '';
+        hidden.value = value;
+        pads[role].load(value);
+    });
+
+    setStatus(contractInfoComplete() ? 'Loaded record #' + id : 'Auto-save will start once Contract Information is fully filled out.');
+}
+
+function newRecord() {
+    form.reset();
+    document.getElementById('id').value = '';
+    document.getElementById('member_name').value = '';
+    document.getElementById('weekly_ees').value = '';
+    document.getElementById('contract_total').value = '';
+
+    const today = new Date().toISOString().slice(0, 10);
+    ['date_issued','effective_date','member_signature_date','president_signature_date','treasurer_signature_date','witness_signature_date'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+        if (el) el.value = today;
+    });
+
+    document.getElementById('purpose_text').value = ''; ?>;
+    document.getElementById('newcomer_terms').value = ''; ?>;
+    document.getElementById('financial_terms').value = ''; ?>;
+    document.getElementById('performance_terms').value = ''; ?>;
+    document.getElementById('limitations_terms').value = ''; ?>;
+    document.getElementById('relationship_terms').value = ''; ?>;
+    document.getElementById('consequences_text').value = ''; ?>;
+    document.getElementById('acknowledgement_text').value = ''; ?>;
+
+    ['member', 'president', 'treasurer', 'witness'].forEach(clearSignature);
+    historySelect.value = '';
+    setStatus('Auto-save will start once Contract Information is fully filled out.');
+}
+
+class SignaturePadSimple {
+    constructor(canvas, hiddenInput) {
+        this.canvas = canvas;
+        this.hiddenInput = hiddenInput;
+        this.ctx = canvas.getContext('2d');
+        this.drawing = false;
+        this.empty = true;
+        this.resize();
+        this.bind();
+        this.drawGuide();
+    }
+
+    resize() {
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        const rect = this.canvas.getBoundingClientRect();
+        this.canvas.width = Math.floor(rect.width * ratio);
+        this.canvas.height = Math.floor(rect.height * ratio);
+        this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        this.ctx.lineWidth = 2;
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+        this.ctx.strokeStyle = '#111';
+        if (this.hiddenInput.value) {
+            this.load(this.hiddenInput.value);
+        } else {
+            this.drawGuide();
+        }
+    }
+
+    bind() {
+        const start = (e) => {
+            e.preventDefault();
+            const p = this.point(e);
+            this.drawing = true;
+            this.ctx.beginPath();
+            this.ctx.moveTo(p.x, p.y);
+        };
+        const move = (e) => {
+            if (!this.drawing) return;
+            e.preventDefault();
+            const p = this.point(e);
+            this.ctx.lineTo(p.x, p.y);
+            this.ctx.stroke();
+            this.empty = false;
+            this.store();
+        };
+        const end = (e) => {
+            if (!this.drawing) return;
+            e.preventDefault();
+            this.drawing = false;
+            this.store();
+            queueAutosave();
+        };
+        this.canvas.addEventListener('mousedown', start);
+        this.canvas.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', end);
+        this.canvas.addEventListener('touchstart', start, { passive: false });
+        this.canvas.addEventListener('touchmove', move, { passive: false });
+        window.addEventListener('touchend', end, { passive: false });
+        window.addEventListener('resize', () => this.resize());
+    }
+
+    point(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const src = e.touches && e.touches[0] ? e.touches[0] : e;
+        return {
+            x: src.clientX - rect.left,
+            y: src.clientY - rect.top,
+        };
+    }
+
+    drawGuide() {
+        const w = this.canvas.getBoundingClientRect().width;
+        const h = this.canvas.getBoundingClientRect().height;
+        this.ctx.clearRect(0, 0, w, h);
+        this.ctx.save();
+        this.ctx.strokeStyle = '#b5b5b5';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.moveTo(10, h - 18);
+        this.ctx.lineTo(w - 10, h - 18);
+        this.ctx.stroke();
+        this.ctx.restore();
+    }
+
+    store() {
+        this.hiddenInput.value = this.empty ? '' : this.canvas.toDataURL('image/png');
+    }
+
+    clear() {
+        this.empty = true;
+        this.hiddenInput.value = '';
+        this.drawGuide();
+        queueAutosave();
+    }
+
+    load(dataUrl) {
+        this.drawGuide();
+        if (!dataUrl) {
+            this.empty = true;
+            return;
+        }
+        const img = new Image();
+        img.onload = () => {
+            const w = this.canvas.getBoundingClientRect().width;
+            const h = this.canvas.getBoundingClientRect().height;
+            this.ctx.clearRect(0, 0, w, h);
+            this.ctx.drawImage(img, 0, 0, w, h);
+            this.empty = false;
+            this.hiddenInput.value = dataUrl;
+        };
+        img.src = dataUrl;
+    }
+}
+
+function clearSignature(role) {
+    pads[role].clear();
+}
+
+['member', 'president', 'treasurer', 'witness'].forEach((role) => {
+    pads[role] = new SignaturePadSimple(
+        document.getElementById(role + '_pad'),
+        document.getElementById(role + '_signature')
+    );
+});
+
+form.querySelectorAll('input, textarea').forEach((el) => {
+    el.addEventListener('input', queueAutosave);
+    el.addEventListener('change', queueAutosave);
+});
+
+['house_name', 'member_name', 'date_issued', 'effective_date', 'weekly_ees', 'contract_total'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+        el.addEventListener('input', queueAutosave);
+        el.addEventListener('change', queueAutosave);
+    }
+});
+
+// AUTO-RESIZE TEXTAREAS (NO SCROLLBARS)
+document.querySelectorAll('textarea').forEach((ta) => {
+    function autoResize() {
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+    }
+    ta.addEventListener('input', autoResize);
+    ta.addEventListener('change', autoResize);
+    autoResize();
+});
+
+historySelect.addEventListener('change', async function () {
+    if (!this.value) {
+        return;
+    }
+    try {
+        await loadRecord(this.value);
+    } catch (err) {
+        setStatus('Load error: ' + err.message);
+    }
+});
+</script>
+</body>
+</html>
