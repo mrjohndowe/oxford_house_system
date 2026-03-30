@@ -59,6 +59,7 @@ $pdo->exec("
         term_2 TEXT NULL,
         term_3 TEXT NULL,
         term_4 TEXT NULL,
+        term_5 TEXT NULL,
         acknowledgement_name VARCHAR(255) NOT NULL DEFAULT '',
         signature_name VARCHAR(255) NOT NULL DEFAULT '',
         signature_date VARCHAR(100) NOT NULL DEFAULT '',
@@ -252,6 +253,7 @@ function saveContract(PDO $pdo, array $data, ?array $file, string $uploadDir, st
         'term_2' => trim((string)($data['term_2'] ?? '')),
         'term_3' => trim((string)($data['term_3'] ?? '')),
         'term_4' => trim((string)($data['term_4'] ?? '')),
+        'term_5' => trim((string)($data['term_5'] ?? '')),
         'acknowledgement_name' => trim((string)($data['acknowledgement_name'] ?? '')),
         'signature_name' => trim((string)($data['signature_name'] ?? '')),
         'signature_date' => trim((string)($data['signature_date'] ?? '')),
@@ -280,6 +282,7 @@ function saveContract(PDO $pdo, array $data, ?array $file, string $uploadDir, st
             term_2 = :term_2,
             term_3 = :term_3,
             term_4 = :term_4,
+            term_5 = :term_5,
             acknowledgement_name = :acknowledgement_name,
             signature_name = :signature_name,
             signature_date = :signature_date,
@@ -310,14 +313,14 @@ function saveContract(PDO $pdo, array $data, ?array $file, string $uploadDir, st
 
     $sql = "INSERT INTO oxford_member_financial_contracts (
         member_name, house_name, contract_date, contract_length, total_amount_owed,
-        term_1, term_2, term_3, term_4,
+        term_1, term_2, term_3, term_4, term_5,
         acknowledgement_name, signature_name, signature_date,
         president_name, treasurer_name, coordinator_name, member_1_name, member_2_name,
         secretary_name, comptroller_name, hs_representative_name, member_3_name, member_4_name,
         scanned_contract, contract_stamp
     ) VALUES (
         :member_name, :house_name, :contract_date, :contract_length, :total_amount_owed,
-        :term_1, :term_2, :term_3, :term_4,
+        :term_1, :term_2, :term_3, :term_4, :term_5,
         :acknowledgement_name, :signature_name, :signature_date,
         :president_name, :treasurer_name, :coordinator_name, :member_1_name, :member_2_name,
         :secretary_name, :comptroller_name, :hs_representative_name, :member_3_name, :member_4_name,
@@ -452,6 +455,7 @@ $record = [
     'term_2' => '',
     'term_3' => '',
     'term_4' => '',
+    'term_5' => '',
     'acknowledgement_name' => '',
     'signature_name' => '',
     'signature_date' => '',
@@ -876,11 +880,11 @@ if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
 
     .stamp-overlay {
         position: absolute;
-        top: 8%;
-        left: 50%;
-        transform: translateX(-50%) rotate(-14deg);
+        top: 35%;
+        left: 67%;
+        transform: translateX(-50%) rotate(-25deg);
         z-index: 20;
-        font-size: 64px;
+        font-size: 90px;
         font-weight: 900;
         letter-spacing: 3px;
         color: rgba(200, 0, 0, 0.72);
@@ -1157,6 +1161,10 @@ if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
                         <div class="term-row">
                             <div class="term-num">4.</div>
                             <textarea class="line-textarea autosave-field" name="term_4" rows="1"><?= h($record['term_4']) ?></textarea>
+                        </div>
+                        <div class="term-row">
+                            <div class="term-num">5.</div>
+                            <textarea class="line-textarea autosave-field" name="term_5" rows="1"><?= h($record['term_5']) ?></textarea>
                         </div>
                     </div>
 
