@@ -884,7 +884,7 @@ if (isset($_GET['load_id']) && ctype_digit((string)$_GET['load_id'])) {
         left: 67%;
         transform: translateX(-50%) rotate(-25deg);
         z-index: 20;
-        font-size: 90px;
+        font-size: 35px;
         font-weight: 900;
         letter-spacing: 3px;
         color: rgba(200, 0, 0, 0.72);
